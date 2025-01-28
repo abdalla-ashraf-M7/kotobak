@@ -20,7 +20,7 @@ class BookCarousel extends StatefulWidget {
   _BookCarouselState createState() => _BookCarouselState();
 }
 
-class _BookCarouselState extends State<BookCarousel> {
+class _BookCarouselState extends State<BookCarousel> with SingleTickerProviderStateMixin {
   late PageController _pageController;
   double _currentPage = 0;
   bool _isAnimating = false;
@@ -31,8 +31,7 @@ class _BookCarouselState extends State<BookCarousel> {
     _pageController = PageController(
       viewportFraction: AppConstants.carouselViewWidth,
       initialPage: 0,
-    );
-    _pageController.addListener(_onPageChanged);
+    )..addListener(_onPageChanged);
   }
 
   @override
@@ -43,21 +42,17 @@ class _BookCarouselState extends State<BookCarousel> {
   }
 
   void _onPageChanged() {
-    if (_isAnimating) return;
     setState(() {
       _currentPage = _pageController.page ?? 0;
     });
   }
 
   void _animateToPage(int page) {
-    _isAnimating = true;
-    _pageController
-        .animateToPage(
-          page,
-          duration: Duration(milliseconds: 500),
-          curve: Curves.easeOutCubic,
-        )
-        .then((_) => _isAnimating = false);
+    _pageController.animateToPage(
+      page,
+      duration: Duration(milliseconds: 400),
+      curve: Curves.easeInOutCubic,
+    );
   }
 
   @override
@@ -73,13 +68,19 @@ class _BookCarouselState extends State<BookCarousel> {
           child: PageView.builder(
             controller: _pageController,
             itemCount: widget.books.length,
-            onPageChanged: (page) => setState(() {}),
+            physics: const BouncingScrollPhysics(),
             itemBuilder: (context, index) {
               final book = widget.books[index];
-              final isCenter = index == _currentPage.round();
               final pageOffset = (index - _currentPage);
+              final isCenter = pageOffset.abs() <= 0.5;
+
+              // Smoothly interpolate the scale
               final scale = 1.0 - (pageOffset.abs() * 0.3).clamp(0.0, 0.4);
+
+              // Smoothly interpolate the opacity
               final opacity = 1.0 - (pageOffset.abs() * 0.6).clamp(0.0, 0.7);
+
+              // Smoothly interpolate the rotation angle
               final angle = pageOffset * -25.0 * (pi / 180.0);
 
               return GestureDetector(
@@ -92,6 +93,7 @@ class _BookCarouselState extends State<BookCarousel> {
                 },
                 child: TweenAnimationBuilder(
                   duration: Duration(milliseconds: 300),
+                  curve: Curves.easeOutCubic,
                   tween: Tween(begin: scale, end: scale),
                   builder: (context, double value, child) {
                     return Transform(

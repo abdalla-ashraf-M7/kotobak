@@ -14,7 +14,7 @@ class LibraryViewController extends GetxController {
   void toggleViewMode() {
     switch (viewMode.value) {
       case ViewMode.list:
-        viewMode.value = ViewMode.grid;
+        viewMode.value = ViewMode.carousel;
         break;
       case ViewMode.grid:
         viewMode.value = ViewMode.carousel;
