@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
+import 'book_controller.dart';
 
-enum ViewMode { list, grid }
+enum ViewMode { list, grid, carousel }
 
 enum SortBy { title, author, lastRead, progress }
 
@@ -11,7 +12,17 @@ class LibraryViewController extends GetxController {
   final RxBool isSearching = false.obs;
 
   void toggleViewMode() {
-    viewMode.value = viewMode.value == ViewMode.list ? ViewMode.grid : ViewMode.list;
+    switch (viewMode.value) {
+      case ViewMode.list:
+        viewMode.value = ViewMode.grid;
+        break;
+      case ViewMode.grid:
+        viewMode.value = ViewMode.carousel;
+        break;
+      case ViewMode.carousel:
+        viewMode.value = ViewMode.list;
+        break;
+    }
   }
 
   void setSortBy(SortBy sort) {
@@ -57,5 +68,13 @@ class LibraryViewController extends GetxController {
     });
 
     return filteredBooks;
+  }
+
+  void deleteBook(String bookId) async {
+    try {
+      await Get.find<BookController>().deleteBook(bookId);
+    } catch (e) {
+      print('Error deleting book: $e');
+    }
   }
 }

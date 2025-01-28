@@ -147,4 +147,28 @@ class DatabaseHelper {
       orderBy: 'timestamp DESC',
     );
   }
+
+  Future<void> deleteBook(String bookId) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      // Delete book
+      await txn.delete(
+        'books',
+        where: 'id = ?',
+        whereArgs: [bookId],
+      );
+      // Delete related bookmarks
+      await txn.delete(
+        'bookmarks',
+        where: 'bookId = ?',
+        whereArgs: [bookId],
+      );
+      // Delete related reading history
+      await txn.delete(
+        'reading_history',
+        where: 'bookId = ?',
+        whereArgs: [bookId],
+      );
+    });
+  }
 }

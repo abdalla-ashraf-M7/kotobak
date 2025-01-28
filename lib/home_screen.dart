@@ -7,71 +7,7 @@ import 'database/database_helper.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'theme/app_colors.dart';
 import 'controllers/library_view_controller.dart';
-
-class BookController extends GetxController {
-  final DatabaseHelper _db = DatabaseHelper();
-  var books = <Map<String, dynamic>>[].obs;
-
-  @override
-  void onInit() async {
-    super.onInit();
-    // Check database schema
-    await _db.checkTableSchema();
-    loadBooks();
-  }
-
-  Future<void> loadBooks() async {
-    try {
-      final loadedBooks = await _db.getBooks();
-      books.assignAll(loadedBooks);
-    } catch (e) {
-      print('Error loading books: $e');
-    }
-  }
-
-  Future<void> addBook(Map<String, dynamic> book) async {
-    try {
-      await _db.insertBook(book);
-      await loadBooks(); // Reload books from database
-    } catch (e) {
-      print('Error adding book: $e');
-    }
-  }
-
-  Future<void> updateProgress(String bookId, double progress) async {
-    try {
-      await _db.updateBookProgress(bookId, progress);
-      await loadBooks(); // Reload to update UI
-    } catch (e) {
-      print('Error updating progress: $e');
-    }
-  }
-
-  Future<void> addBookmark(String bookId, int page, {String? note}) async {
-    try {
-      await _db.insertBookmark(bookId, page, note: note);
-    } catch (e) {
-      print('Error adding bookmark: $e');
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getBookmarks(String bookId) async {
-    try {
-      return await _db.getBookmarks(bookId);
-    } catch (e) {
-      print('Error getting bookmarks: $e');
-      return [];
-    }
-  }
-
-  Future<void> addReadingHistory(String bookId, int page) async {
-    try {
-      await _db.addReadingHistory(bookId, page);
-    } catch (e) {
-      print('Error adding reading history: $e');
-    }
-  }
-}
+import 'controllers/book_controller.dart';
 
 final BookController bookController = Get.put(BookController());
 
@@ -127,104 +63,200 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBookGrid(List<Map<String, dynamic>> books) {
-    return GridView.builder(
-      padding: EdgeInsets.all(16),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.7,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
+  Widget _buildBookOptions(BuildContext context, Map<String, dynamic> book) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            margin: EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.secondary.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          ListTile(
+            leading: Icon(Icons.edit, color: AppColors.primary),
+            title: Text('Edit Book'),
+            onTap: () {
+              Navigator.pop(context);
+              Get.toNamed('/upload', arguments: book);
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.delete, color: AppColors.error),
+            title: Text('Delete Book'),
+            onTap: () {
+              Navigator.pop(context);
+              Get.dialog(
+                AlertDialog(
+                  title: Text('Delete Book'),
+                  content: Text('Are you sure you want to delete "${book['title']}"?'),
+                  actions: [
+                    TextButton(
+                      child: Text('Cancel'),
+                      onPressed: () => Get.back(),
+                    ),
+                    TextButton(
+                      child: Text('Delete', style: TextStyle(color: AppColors.error)),
+                      onPressed: () {
+                        Get.back();
+                        viewController.deleteBook(book['id']);
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGridItem(Map<String, dynamic> book) {
+    return GestureDetector(
+      onTap: () => Get.toNamed('/reader', arguments: {
+        'bookId': book['id'],
+        'filePath': book['filePath'],
+      }),
+      onLongPress: () {
+        showModalBottomSheet(
+          context: Get.context!,
+          backgroundColor: Colors.transparent,
+          builder: (context) => _buildBookOptions(context, book),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Hero(
+                tag: 'book_${book['id']}',
+                child: ClipRRect(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                  child: book['coverImagePath'] != null
+                      ? Image.file(
+                          File(book['coverImagePath']),
+                          fit: BoxFit.cover,
+                        )
+                      : Container(
+                          decoration: BoxDecoration(
+                            gradient: AppColors.primaryGradient,
+                          ),
+                          child: Center(
+                            child: Text(
+                              book['title'][0],
+                              style: TextStyle(
+                                fontSize: 40,
+                                color: AppColors.onPrimary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          book['title'],
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.onSurface,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          book['author'],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.secondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        LinearProgressIndicator(
+                          value: book['progress'],
+                          backgroundColor: AppColors.secondaryContainer,
+                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          '${(book['progress'] * 100).toInt()}% completed',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.secondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCarouselView(List<Map<String, dynamic>> books) {
+    return PageView.builder(
+      controller: PageController(viewportFraction: 0.8),
       itemCount: books.length,
       itemBuilder: (context, index) {
         final book = books[index];
         return AnimationConfiguration.staggeredGrid(
           position: index,
-          columnCount: 2,
+          columnCount: 1,
           duration: Duration(milliseconds: 375),
           child: ScaleAnimation(
             child: FadeInAnimation(
-              child: GestureDetector(
-                onTap: () => Get.toNamed('/reader', arguments: {
-                  'bookId': book['id'],
-                  'filePath': book['filePath'],
-                }),
+              child: Center(
                 child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-                          child: book['coverImagePath'] != null
-                              ? Image.file(
-                                  File(book['coverImagePath']),
-                                  fit: BoxFit.cover,
-                                )
-                              : Container(
-                                  decoration: BoxDecoration(
-                                    gradient: AppColors.primaryGradient,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      book['title'][0],
-                                      style: TextStyle(
-                                        fontSize: 32,
-                                        color: AppColors.onPrimary,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                        ),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              book['title'],
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.onSurface,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              book['author'],
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.secondary,
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            LinearProgressIndicator(
-                              value: book['progress'],
-                              backgroundColor: AppColors.secondaryContainer,
-                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                  margin: EdgeInsets.symmetric(horizontal: 10, vertical: 20),
+                  child: Transform.scale(
+                    scale: 0.9,
+                    child: _buildGridItem(book),
                   ),
                 ),
               ),
@@ -261,7 +293,11 @@ class HomeScreen extends StatelessWidget {
                   ),
                   IconButton(
                     icon: Icon(
-                      viewController.viewMode.value == ViewMode.list ? Icons.grid_view : Icons.view_list,
+                      viewController.viewMode.value == ViewMode.list
+                          ? Icons.grid_view
+                          : viewController.viewMode.value == ViewMode.grid
+                              ? Icons.view_carousel
+                              : Icons.view_list,
                       color: AppColors.onPrimary,
                     ),
                     onPressed: viewController.toggleViewMode,
@@ -286,28 +322,7 @@ class HomeScreen extends StatelessWidget {
           final filteredBooks = viewController.filterAndSortBooks(bookController.books);
           return AnimatedSwitcher(
             duration: Duration(milliseconds: 300),
-            child: viewController.viewMode.value == ViewMode.list
-                ? AnimationLimiter(
-                    child: ListView.builder(
-                      key: ValueKey('list'),
-                      padding: EdgeInsets.all(16),
-                      itemCount: filteredBooks.length,
-                      itemBuilder: (context, index) {
-                        final book = filteredBooks[index];
-                        return AnimationConfiguration.staggeredList(
-                          position: index,
-                          duration: Duration(milliseconds: 375),
-                          child: SlideAnimation(
-                            verticalOffset: 50.0,
-                            child: FadeInAnimation(
-                              child: _buildListItem(book),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  )
-                : _buildBookGrid(filteredBooks),
+            child: _buildViewMode(filteredBooks),
           );
         }),
       ),
@@ -317,6 +332,61 @@ class HomeScreen extends StatelessWidget {
         child: Icon(Icons.add, color: AppColors.onPrimary),
       ),
     );
+  }
+
+  Widget _buildViewMode(List<Map<String, dynamic>> books) {
+    switch (viewController.viewMode.value) {
+      case ViewMode.list:
+        return AnimationLimiter(
+          key: ValueKey('list'),
+          child: ListView.builder(
+            padding: EdgeInsets.all(16),
+            itemCount: books.length,
+            itemBuilder: (context, index) {
+              final book = books[index];
+              return AnimationConfiguration.staggeredList(
+                position: index,
+                duration: Duration(milliseconds: 375),
+                child: SlideAnimation(
+                  verticalOffset: 50.0,
+                  child: FadeInAnimation(
+                    child: _buildListItem(book),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      case ViewMode.grid:
+        return AnimationLimiter(
+          key: ValueKey('grid'),
+          child: GridView.builder(
+            padding: EdgeInsets.all(16),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 0.65,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+            ),
+            itemCount: books.length,
+            itemBuilder: (context, index) {
+              final book = books[index];
+              return AnimationConfiguration.staggeredGrid(
+                position: index,
+                columnCount: 2,
+                duration: Duration(milliseconds: 375),
+                child: ScaleAnimation(
+                  child: FadeInAnimation(
+                    child: _buildGridItem(book),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      case ViewMode.carousel:
+        return _buildCarouselView(books);
+    }
   }
 
   Widget _buildListItem(Map<String, dynamic> book) {
