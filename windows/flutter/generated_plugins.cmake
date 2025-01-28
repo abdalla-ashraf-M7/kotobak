@@ -14,6 +14,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   objectbox_flutter_libs
   permission_handler_windows
   record_windows
+  syncfusion_pdfviewer_windows
   url_launcher_windows
 )
 
