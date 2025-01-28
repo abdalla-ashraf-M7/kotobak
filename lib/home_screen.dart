@@ -1,16 +1,21 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'database/database_helper.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'theme/app_colors.dart';
 
 class BookController extends GetxController {
   final DatabaseHelper _db = DatabaseHelper();
   var books = <Map<String, dynamic>>[].obs;
 
   @override
-  void onInit() {
+  void onInit() async {
     super.onInit();
+    // Check database schema
+    await _db.checkTableSchema();
     loadBooks();
   }
 
@@ -70,86 +75,166 @@ class BookController extends GetxController {
 final BookController bookController = Get.put(BookController());
 
 class HomeScreen extends StatelessWidget {
+  Future<void> _refreshBooks() async {
+    await bookController.loadBooks();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('My Library'),
+        elevation: 0,
+        backgroundColor: AppColors.primary,
+        title: Text(
+          'My Library',
+          style: TextStyle(
+            color: AppColors.onPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.search, color: AppColors.onPrimary),
+            onPressed: () {
+              // TODO: Implement search functionality
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.sort, color: AppColors.onPrimary),
+            onPressed: () {
+              // TODO: Implement sort functionality
+            },
+          ),
+        ],
       ),
-      body: Obx(() => ListView.builder(
-            itemCount: bookController.books.length,
-            itemBuilder: (context, index) {
-              final book = bookController.books[index];
-              return GestureDetector(
-                onTap: () {
-                  print('Opening book with file path: ${book['filePath']}'); // Debug print
-                  Get.toNamed('/reader', arguments: {
-                    'bookId': book['id'],
-                    'filePath': book['filePath'],
-                  });
-                },
-                child: Card(
-                  margin: const EdgeInsets.all(8.0),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 60,
-                          height: 90,
-                          decoration: BoxDecoration(
-                            color: Colors.blue,
-                            borderRadius: BorderRadius.circular(4.0),
-                          ),
-                          child: Center(
-                            child: Text(
-                              book['title'][0],
-                              style: const TextStyle(
-                                fontSize: 24,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
+      body: RefreshIndicator(
+        onRefresh: _refreshBooks,
+        child: Obx(() => AnimationLimiter(
+              child: ListView.builder(
+                padding: EdgeInsets.all(16),
+                itemCount: bookController.books.length,
+                itemBuilder: (context, index) {
+                  final book = bookController.books[index];
+                  return AnimationConfiguration.staggeredList(
+                    position: index,
+                    duration: const Duration(milliseconds: 375),
+                    child: SlideAnimation(
+                      verticalOffset: 50.0,
+                      child: FadeInAnimation(
+                        child: GestureDetector(
+                          onTap: () {
+                            print('Opening book with file path: ${book['filePath']}');
+                            Get.toNamed('/reader', arguments: {
+                              'bookId': book['id'],
+                              'filePath': book['filePath'],
+                            });
+                          },
+                          child: Container(
+                            margin: EdgeInsets.only(bottom: 16),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 10,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: Radius.circular(12),
+                                    bottomLeft: Radius.circular(12),
+                                  ),
+                                  child: book['coverImagePath'] != null
+                                      ? Image.file(
+                                          File(book['coverImagePath']),
+                                          width: 100,
+                                          height: 140,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : Container(
+                                          width: 100,
+                                          height: 140,
+                                          decoration: BoxDecoration(
+                                            gradient: AppColors.primaryGradient,
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              book['title'][0],
+                                              style: TextStyle(
+                                                fontSize: 32,
+                                                color: AppColors.onPrimary,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                ),
+                                Expanded(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(16),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          book['title'],
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.onSurface,
+                                          ),
+                                        ),
+                                        SizedBox(height: 4),
+                                        Text(
+                                          book['author'],
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: AppColors.secondary,
+                                          ),
+                                        ),
+                                        SizedBox(height: 12),
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            LinearProgressIndicator(
+                                              value: book['progress'],
+                                              backgroundColor: AppColors.secondaryContainer,
+                                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                            ),
+                                            SizedBox(height: 4),
+                                            Text(
+                                              '${(book['progress'] * 100).toInt()}% completed',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: AppColors.secondary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                        const SizedBox(width: 16.0),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                book['title'],
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                book['author'],
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              const SizedBox(height: 8.0),
-                              LinearProgressIndicator(
-                                value: book['progress'],
-                                backgroundColor: Colors.grey[300],
-                                color: Colors.blue,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-              );
-            },
-          )),
+                  );
+                },
+              ),
+            )),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => Get.toNamed('/upload'),
-        child: const Icon(Icons.add),
+        backgroundColor: AppColors.primary,
+        child: Icon(Icons.add, color: AppColors.onPrimary),
       ),
     );
   }

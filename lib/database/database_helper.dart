@@ -19,9 +19,17 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'library.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Add coverImagePath column to books table
+      await db.execute('ALTER TABLE books ADD COLUMN coverImagePath TEXT;');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -32,6 +40,7 @@ class DatabaseHelper {
         title TEXT NOT NULL,
         author TEXT NOT NULL,
         filePath TEXT NOT NULL,
+        coverImagePath TEXT,
         progress REAL DEFAULT 0.0,
         lastRead INTEGER,
         createdAt INTEGER
@@ -60,6 +69,16 @@ class DatabaseHelper {
         FOREIGN KEY (bookId) REFERENCES books (id) ON DELETE CASCADE
       )
     ''');
+  }
+
+  // Debug method to check table schema
+  Future<void> checkTableSchema() async {
+    final db = await database;
+    var tableInfo = await db.rawQuery("PRAGMA table_info('books')");
+    print('Books table schema:');
+    for (var column in tableInfo) {
+      print('Column: ${column['name']}, Type: ${column['type']}');
+    }
   }
 
   // Book operations
