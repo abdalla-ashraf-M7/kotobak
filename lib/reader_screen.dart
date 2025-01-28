@@ -14,7 +14,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bookId = Get.arguments['bookId'];
+    final String? filePath = Get.arguments['filePath'];
+    if (filePath == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text('Reader'),
+        ),
+        body: Center(
+          child: Text('No PDF file selected.'),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Reader'),
@@ -22,7 +33,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       body: Stack(
         children: [
           PDFView(
-            filePath: 'assets/sample.pdf',
+            filePath: filePath,
             onRender: (pages) {
               setState(() {
                 totalPages = pages!;
@@ -38,7 +49,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
               });
             },
             onError: (error) {
-              print(error.toString());
+              print('PDF Error: $error');
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to load PDF: $error')),
+              );
             },
           ),
           if (showControls)
