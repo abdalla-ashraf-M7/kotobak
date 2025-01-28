@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:get/get.dart';
+import 'home_screen.dart';
 
 class ReaderScreen extends StatefulWidget {
   @override
@@ -15,6 +16,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   Widget build(BuildContext context) {
     final String? filePath = Get.arguments['filePath'];
+    final String bookId = Get.arguments['bookId'];
+
     if (filePath == null) {
       return Scaffold(
         appBar: AppBar(
@@ -29,6 +32,17 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Reader'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.bookmark_add),
+            onPressed: () {
+              bookController.addBookmark(bookId, currentPage);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Bookmark added')),
+              );
+            },
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -47,6 +61,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 currentPage = page!;
                 totalPages = total!;
               });
+              // Update progress and reading history
+              if (page != null) {
+                final progress = (page + 1) / total!;
+                bookController.updateProgress(bookId, progress);
+                bookController.addReadingHistory(bookId, page);
+              }
             },
             onError: (error) {
               print('PDF Error: $error');

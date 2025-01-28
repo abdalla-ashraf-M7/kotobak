@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'database/database_helper.dart';
 
 class BookController extends GetxController {
-  static const String STORAGE_KEY = 'books_data';
+  final DatabaseHelper _db = DatabaseHelper();
   var books = <Map<String, dynamic>>[].obs;
 
   @override
@@ -15,31 +16,54 @@ class BookController extends GetxController {
 
   Future<void> loadBooks() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final String? storedBooks = prefs.getString(STORAGE_KEY);
-      if (storedBooks != null) {
-        final List<dynamic> decodedBooks = json.decode(storedBooks);
-        books.assignAll(decodedBooks.cast<Map<String, dynamic>>());
-      }
+      final loadedBooks = await _db.getBooks();
+      books.assignAll(loadedBooks);
     } catch (e) {
       print('Error loading books: $e');
     }
   }
 
-  Future<void> saveBooks() async {
+  Future<void> addBook(Map<String, dynamic> book) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final String encodedBooks = json.encode(books.toList());
-      await prefs.setString(STORAGE_KEY, encodedBooks);
+      await _db.insertBook(book);
+      await loadBooks(); // Reload books from database
     } catch (e) {
-      print('Error saving books: $e');
+      print('Error adding book: $e');
     }
   }
 
-  void addBook(Map<String, dynamic> book) {
-    books.add(book);
-    saveBooks();
-    update();
+  Future<void> updateProgress(String bookId, double progress) async {
+    try {
+      await _db.updateBookProgress(bookId, progress);
+      await loadBooks(); // Reload to update UI
+    } catch (e) {
+      print('Error updating progress: $e');
+    }
+  }
+
+  Future<void> addBookmark(String bookId, int page, {String? note}) async {
+    try {
+      await _db.insertBookmark(bookId, page, note: note);
+    } catch (e) {
+      print('Error adding bookmark: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getBookmarks(String bookId) async {
+    try {
+      return await _db.getBookmarks(bookId);
+    } catch (e) {
+      print('Error getting bookmarks: $e');
+      return [];
+    }
+  }
+
+  Future<void> addReadingHistory(String bookId, int page) async {
+    try {
+      await _db.addReadingHistory(bookId, page);
+    } catch (e) {
+      print('Error adding reading history: $e');
+    }
   }
 }
 
