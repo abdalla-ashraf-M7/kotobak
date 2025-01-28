@@ -118,6 +118,7 @@ dependencies:
   flutter_vector_icons: ^2.0.0
   flutter_pdfview: ^1.0.4
   file_picker: ^5.0.0
+  pdf_render: ^1.4.12
 
 dev_dependencies:
   flutter_test:
