@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-class HomeScreen extends StatelessWidget {
-  final List<Map<String, dynamic>> mockBooks = [
+class BookController extends GetxController {
+  var books = <Map<String, dynamic>>[
     {'id': '1', 'title': 'To Kill a Mockingbird', 'author': 'Harper Lee', 'progress': 0.75},
     {'id': '2', 'title': '1984', 'author': 'George Orwell', 'progress': 0.3},
     {'id': '3', 'title': 'Pride and Prejudice', 'author': 'Jane Austen', 'progress': 0.5},
-  ];
+  ].obs;
 
+  void addBook(Map<String, dynamic> book) {
+    books.add(book);
+  }
+}
+
+final BookController bookController = Get.put(BookController());
+
+class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -15,9 +23,9 @@ class HomeScreen extends StatelessWidget {
         title: Text('My Library'),
       ),
       body: ListView.builder(
-        itemCount: mockBooks.length,
+        itemCount: bookController.books.length,
         itemBuilder: (context, index) {
-          final book = mockBooks[index];
+          final book = bookController.books[index];
           return GestureDetector(
             onTap: () => Get.toNamed('/reader', arguments: {'bookId': book['id']}),
             child: Card(

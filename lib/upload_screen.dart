@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:get/get.dart';
+import 'home_screen.dart';
 
 class UploadScreen extends StatefulWidget {
   @override
@@ -26,9 +27,15 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   void uploadBook() {
-    // Implement book upload logic here
-    print('Uploading book: $bookTitle, $bookAuthor, ${selectedFile?.files.single.name}');
-    Get.back();
+    if (selectedFile != null) {
+      bookController.addBook({
+        'id': DateTime.now().toString(),
+        'title': bookTitle,
+        'author': bookAuthor,
+        'progress': 0.0,
+      });
+      Get.back();
+    }
   }
 
   @override
