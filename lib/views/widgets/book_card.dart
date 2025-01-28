@@ -16,6 +16,7 @@ class BookCard extends StatelessWidget {
   final double scale;
   final bool showProgress;
   final bool showTitle;
+  final bool isCarouselView;
 
   const BookCard({
     Key? key,
@@ -29,125 +30,118 @@ class BookCard extends StatelessWidget {
     this.scale = 1.0,
     this.showProgress = true,
     this.showTitle = true,
+    this.isCarouselView = false,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final card = Container(
-      width: width * scale,
-      height: height * scale,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppConstants.bookCoverRadius),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          // Book Cover
-          Hero(
-            tag: 'book_${book['id']}',
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppConstants.bookCoverRadius),
-                image: book['coverImagePath'] != null
-                    ? DecorationImage(
-                        image: FileImage(File(book['coverImagePath'])),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
-                gradient: book['coverImagePath'] == null ? AppColors.primaryGradient : null,
+    final card = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Book Cover with Progress
+        Container(
+          width: width * scale,
+          height: showTitle && !isCarouselView ? height * 0.85 * scale : height * scale,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppConstants.bookCoverRadius),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: Offset(0, 4),
               ),
-              child: book['coverImagePath'] == null
-                  ? Center(
-                      child: Text(
-                        book['title'][0].toUpperCase(),
-                        style: TextStyle(
-                          fontSize: height * 0.2 * scale,
-                          color: AppColors.onPrimary,
-                          fontWeight: FontWeight.bold,
+            ],
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Book Cover
+              Hero(
+                tag: 'book_${book['id']}',
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppConstants.bookCoverRadius),
+                  child: book['coverImagePath'] != null
+                      ? Image.file(
+                          File(book['coverImagePath']!),
+                          fit: BoxFit.cover,
+                        )
+                      : Container(
+                          decoration: BoxDecoration(
+                            gradient: AppColors.primaryGradient,
+                          ),
+                          child: Center(
+                            child: Text(
+                              book['title'][0].toUpperCase(),
+                              style: TextStyle(
+                                fontSize: height * 0.3 * scale,
+                                color: AppColors.onPrimary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    )
-                  : null,
-            ),
-          ),
-          // Progress Indicator
-          if (showProgress)
-            Positioned(
-              right: 10 * scale,
-              bottom: 10 * scale,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppColors.surface.withOpacity(0.9),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
+                ),
+              ),
+              // Progress Indicator
+              if (showProgress)
+                Positioned(
+                  right: 8 * scale,
+                  top: 8 * scale,
+                  child: Container(
+                    padding: EdgeInsets.all(2 * scale),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface.withOpacity(0.9),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
                     ),
-                  ],
+                    child: BookProgressIndicator(
+                      progress: book['progress'] ?? 0.0,
+                      size: AppConstants.gridItemProgressSize * scale * 0.7,
+                      showText: false,
+                    ),
+                  ),
                 ),
-                padding: EdgeInsets.all(4 * scale),
-                child: BookProgressIndicator(
-                  progress: book['progress'] ?? 0.0,
-                  size: AppConstants.gridItemProgressSize * scale,
-                  showText: false,
+              // Tap Area
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onTap,
+                  onLongPress: onLongPress,
+                  borderRadius: BorderRadius.circular(AppConstants.bookCoverRadius),
+                  splashColor: AppColors.primary.withOpacity(0.1),
+                  highlightColor: AppColors.primary.withOpacity(0.05),
                 ),
               ),
-            ),
-          // Title Overlay
-          if (showTitle)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.7),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.vertical(
-                    bottom: Radius.circular(AppConstants.bookCoverRadius),
-                  ),
-                ),
-                padding: EdgeInsets.all(12 * scale),
-                child: Text(
-                  book['title'],
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 16 * scale,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
+            ],
+          ),
+        ),
+        // Title
+        if (showTitle && !isCarouselView) ...[
+          SizedBox(height: 4 * scale),
+          Container(
+            width: width * scale,
+            padding: EdgeInsets.symmetric(horizontal: 4 * scale),
+            child: Text(
+              book['title'],
+              maxLines: 1,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12 * scale,
+                fontWeight: FontWeight.w500,
+                color: AppColors.onSurface,
               ),
-            ),
-          // Tap Area
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onTap,
-              onLongPress: onLongPress,
-              borderRadius: BorderRadius.circular(AppConstants.bookCoverRadius),
-              splashColor: AppColors.primary.withOpacity(0.1),
-              highlightColor: AppColors.primary.withOpacity(0.05),
             ),
           ),
         ],
-      ),
+      ],
     );
 
     return isDeleting && onDismissed != null
