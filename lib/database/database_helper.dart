@@ -171,4 +171,18 @@ class DatabaseHelper {
       );
     });
   }
+
+  Future<void> updateBook(String bookId, Map<String, dynamic> book) async {
+    final db = await database;
+    await db.update(
+      'books',
+      {
+        'title': book['title'],
+        'author': book['author'],
+        'coverImagePath': book['coverImagePath'],
+      },
+      where: 'id = ?',
+      whereArgs: [bookId],
+    );
+  }
 }

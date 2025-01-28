@@ -3,11 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'database/database_helper.dart';
+import '../../database/database_helper.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import 'theme/app_colors.dart';
-import 'controllers/library_view_controller.dart';
-import 'controllers/book_controller.dart';
+import '../../theme/app_colors.dart';
+import '../../controllers/library_view_controller.dart';
+import '../../controllers/book_controller.dart';
 
 final BookController bookController = Get.put(BookController());
 
@@ -46,10 +46,6 @@ class HomeScreen extends StatelessWidget {
         PopupMenuItem(
           value: SortBy.title,
           child: Text('Sort by Title'),
-        ),
-        PopupMenuItem(
-          value: SortBy.author,
-          child: Text('Sort by Author'),
         ),
         PopupMenuItem(
           value: SortBy.lastRead,

@@ -4,6 +4,7 @@ import '../database/database_helper.dart';
 class BookController extends GetxController {
   final DatabaseHelper _db = DatabaseHelper();
   var books = <Map<String, dynamic>>[].obs;
+  var isDeleting = false.obs;
 
   @override
   void onInit() async {
@@ -27,6 +28,15 @@ class BookController extends GetxController {
       await loadBooks();
     } catch (e) {
       print('Error adding book: $e');
+    }
+  }
+
+  Future<void> updateBook(String bookId, Map<String, dynamic> book) async {
+    try {
+      await _db.updateBook(bookId, book);
+      await loadBooks();
+    } catch (e) {
+      print('Error updating book: $e');
     }
   }
 
@@ -66,10 +76,13 @@ class BookController extends GetxController {
 
   Future<void> deleteBook(String bookId) async {
     try {
+      isDeleting.value = true;
       await _db.deleteBook(bookId);
       await loadBooks();
     } catch (e) {
       print('Error deleting book: $e');
+    } finally {
+      isDeleting.value = false;
     }
   }
 }

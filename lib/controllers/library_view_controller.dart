@@ -3,11 +3,11 @@ import 'book_controller.dart';
 
 enum ViewMode { list, grid, carousel }
 
-enum SortBy { title, author, lastRead, progress }
+enum SortBy { title, lastRead, progress }
 
 class LibraryViewController extends GetxController {
-  final Rx<ViewMode> viewMode = ViewMode.list.obs;
-  final Rx<SortBy> sortBy = SortBy.title.obs;
+  final Rx<ViewMode> viewMode = ViewMode.grid.obs;
+  final Rx<SortBy> sortBy = SortBy.lastRead.obs;
   final RxString searchQuery = ''.obs;
   final RxBool isSearching = false.obs;
 
@@ -47,9 +47,8 @@ class LibraryViewController extends GetxController {
     if (searchQuery.isNotEmpty) {
       filteredBooks = books.where((book) {
         final title = book['title'].toString().toLowerCase();
-        final author = book['author'].toString().toLowerCase();
         final query = searchQuery.value.toLowerCase();
-        return title.contains(query) || author.contains(query);
+        return title.contains(query);
       }).toList();
     }
 
@@ -58,12 +57,10 @@ class LibraryViewController extends GetxController {
       switch (sortBy.value) {
         case SortBy.title:
           return a['title'].toString().compareTo(b['title'].toString());
-        case SortBy.author:
-          return a['author'].toString().compareTo(b['author'].toString());
         case SortBy.lastRead:
           return (b['lastRead'] ?? 0).compareTo(a['lastRead'] ?? 0);
         case SortBy.progress:
-          return (b['progress'] ?? 0).compareTo(a['progress'] ?? 0);
+          return (b['progress'] ?? 0.0).compareTo(a['progress'] ?? 0.0);
       }
     });
 

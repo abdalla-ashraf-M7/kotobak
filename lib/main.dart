@@ -1,28 +1,26 @@
 import 'package:get/get.dart';
-import 'home_screen.dart';
-import 'reader_screen.dart';
-import 'upload_screen.dart';
 import 'package:flutter/material.dart';
+import 'routes/app_routes.dart';
+import 'theme/app_colors.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
       title: 'My Library',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
         useMaterial3: true,
       ),
-      initialRoute: '/',
-      getPages: [
-        GetPage(name: '/', page: () => HomeScreen()),
-        GetPage(name: '/reader', page: () => ReaderScreen()),
-        GetPage(name: '/upload', page: () => UploadScreen()),
-      ],
+      initialRoute: Routes.home,
+      getPages: AppPages.pages,
     );
   }
 }
