@@ -11,6 +11,7 @@ import '../../controllers/book_controller.dart';
 import '../../core/constants/app_constants.dart';
 import '../widgets/book_card.dart';
 import '../widgets/book_carousel.dart';
+import '../widgets/book_progress_indicator.dart';
 
 final BookController bookController = Get.put(BookController());
 
@@ -121,12 +122,16 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildGridView(List<Map<String, dynamic>> books) {
+    final screenWidth = MediaQuery.of(Get.context!).size.width;
+    final itemWidth = (screenWidth - (3 * AppConstants.defaultPadding)) / 2;
+    final itemHeight = itemWidth * 1.5;
+
     return AnimationLimiter(
       child: GridView.builder(
         padding: EdgeInsets.all(AppConstants.defaultPadding),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 0.65,
+          childAspectRatio: itemWidth / (itemHeight + 32),
           crossAxisSpacing: AppConstants.defaultPadding,
           mainAxisSpacing: AppConstants.defaultPadding,
         ),
@@ -152,8 +157,8 @@ class HomeScreen extends StatelessWidget {
                       builder: (context) => _buildBookOptions(context, book),
                     );
                   },
-                  width: 140,
-                  height: 200,
+                  width: itemWidth,
+                  height: itemHeight,
                   showProgress: true,
                   showTitle: true,
                 ),
@@ -180,23 +185,115 @@ class HomeScreen extends StatelessWidget {
               child: FadeInAnimation(
                 child: Padding(
                   padding: EdgeInsets.only(bottom: AppConstants.defaultPadding),
-                  child: BookCard(
-                    book: book,
-                    onTap: () => Get.toNamed('/reader', arguments: {
-                      'bookId': book['id'],
-                      'filePath': book['filePath'],
-                    }),
-                    onLongPress: () {
-                      showModalBottomSheet(
-                        context: context,
-                        backgroundColor: Colors.transparent,
-                        builder: (context) => _buildBookOptions(context, book),
-                      );
-                    },
-                    width: double.infinity,
-                    height: 160,
-                    showProgress: true,
-                    showTitle: true,
+                  child: Container(
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppConstants.defaultRadius),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(AppConstants.defaultRadius),
+                        onTap: () => Get.toNamed('/reader', arguments: {
+                          'bookId': book['id'],
+                          'filePath': book['filePath'],
+                        }),
+                        onLongPress: () {
+                          showModalBottomSheet(
+                            context: context,
+                            backgroundColor: Colors.transparent,
+                            builder: (context) => _buildBookOptions(context, book),
+                          );
+                        },
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(AppConstants.defaultRadius),
+                                bottomLeft: Radius.circular(AppConstants.defaultRadius),
+                              ),
+                              child: Hero(
+                                tag: 'book_${book['id']}',
+                                child: book['coverImagePath'] != null
+                                    ? Image.file(
+                                        File(book['coverImagePath']!),
+                                        width: 80,
+                                        height: 120,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Container(
+                                        width: 80,
+                                        height: 120,
+                                        decoration: BoxDecoration(
+                                          gradient: AppColors.primaryGradient,
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            book['title'][0].toUpperCase(),
+                                            style: TextStyle(
+                                              fontSize: 32,
+                                              color: AppColors.onPrimary,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Padding(
+                                padding: EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      book['title'],
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.onSurface,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    if (book['progress'] != null) ...[
+                                      SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          BookProgressIndicator(
+                                            progress: book['progress'],
+                                            size: 32,
+                                            showText: true,
+                                          ),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            'Progress',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: AppColors.onSurface.withOpacity(0.7),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -253,11 +350,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                   IconButton(
                     icon: Icon(
-                      viewController.viewMode.value == ViewMode.list
-                          ? Icons.grid_view
-                          : viewController.viewMode.value == ViewMode.grid
-                              ? Icons.view_carousel
-                              : Icons.view_list,
+                      viewController.viewMode.value == ViewMode.list ? Icons.view_carousel : Icons.view_list,
                       color: AppColors.onPrimary,
                     ),
                     onPressed: viewController.toggleViewMode,
@@ -282,11 +375,7 @@ class HomeScreen extends StatelessWidget {
           final filteredBooks = viewController.filterAndSortBooks(bookController.books);
           return AnimatedSwitcher(
             duration: Duration(milliseconds: 300),
-            child: viewController.viewMode.value == ViewMode.grid
-                ? _buildGridView(filteredBooks)
-                : viewController.viewMode.value == ViewMode.list
-                    ? _buildListView(filteredBooks)
-                    : _buildCarouselView(filteredBooks),
+            child: viewController.viewMode.value == ViewMode.list ? _buildListView(filteredBooks) : _buildCarouselView(filteredBooks),
           );
         }),
       ),

@@ -5,41 +5,40 @@ import 'dart:math' as math;
 class BookProgressIndicator extends StatelessWidget {
   final double progress;
   final double size;
-  final Color? color;
   final bool showText;
 
   const BookProgressIndicator({
     Key? key,
     required this.progress,
-    this.size = 60.0,
-    this.color,
+    required this.size,
     this.showText = true,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      child: CustomPaint(
-        painter: _CircularProgressPainter(
-          progress: progress,
-          color: color ?? AppColors.primary,
-          backgroundColor: AppColors.secondaryContainer,
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        SizedBox(
+          width: size,
+          height: size,
+          child: CircularProgressIndicator(
+            value: progress,
+            backgroundColor: AppColors.secondary.withOpacity(0.2),
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+            strokeWidth: size * 0.1,
+          ),
         ),
-        child: showText
-            ? Center(
-                child: Text(
-                  '${(progress * 100).toInt()}%',
-                  style: TextStyle(
-                    fontSize: size * 0.25,
-                    fontWeight: FontWeight.bold,
-                    color: color ?? AppColors.primary,
-                  ),
-                ),
-              )
-            : null,
-      ),
+        if (showText)
+          Text(
+            '${(progress * 100).toInt()}%',
+            style: TextStyle(
+              fontSize: size * 0.3,
+              fontWeight: FontWeight.bold,
+              color: AppColors.onSurface,
+            ),
+          ),
+      ],
     );
   }
 }

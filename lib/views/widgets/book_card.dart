@@ -104,7 +104,7 @@ class BookCard extends StatelessWidget {
                     child: BookProgressIndicator(
                       progress: book['progress'] ?? 0.0,
                       size: AppConstants.gridItemProgressSize * scale * 0.7,
-                      showText: false,
+                      showText: isCarouselView || !showProgress,
                     ),
                   ),
                 ),
