@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 import '../views/screens/home_screen.dart';
+import '../views/screens/quotes_screen.dart';
 import '../views/screens/reader_screen.dart';
 import '../views/screens/edit_book_screen.dart';
 import '../views/screens/upload_screen.dart';
@@ -13,6 +14,7 @@ abstract class Routes {
   static const reader = '/reader';
   static const editBook = '/edit-book';
   static const upload = '/upload';
+  static const quotes = '/quotes';
 }
 
 abstract class AppPages {
@@ -46,6 +48,11 @@ abstract class AppPages {
       page: () => UploadScreen(),
       binding: UploadBinding(),
       transition: Transition.rightToLeftWithFade,
+    ),
+    GetPage(
+      name: Routes.quotes,
+      page: () => QuotesScreen(bookId: Get.arguments as String),
+      transition: Transition.fadeIn,
     ),
   ];
 }

@@ -142,6 +142,18 @@ class DatabaseHelper {
         FOREIGN KEY (bookId) REFERENCES books (id) ON DELETE CASCADE
       )
     '''); */
+
+    await db.execute('''
+  CREATE TABLE quotes(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bookId TEXT NOT NULL,
+    text TEXT,
+    imagePath TEXT NOT NULL,
+    pageNumber INTEGER NOT NULL,
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY (bookId) REFERENCES books (id) ON DELETE CASCADE
+  )
+''');
   }
 
   // Debug method to check table schema
@@ -355,5 +367,32 @@ class DatabaseHelper {
       whereArgs: [bookId],
     );
     return results.isNotEmpty ? results.first : null;
+  }
+  //quotes
+
+// Add to DatabaseHelper class
+// Quote operations
+  Future<int> insertQuote(Map<String, dynamic> quote) async {
+    final db = await database;
+    return await db.insert('quotes', quote);
+  }
+
+  Future<List<Map<String, dynamic>>> getQuotes(String bookId) async {
+    final db = await database;
+    return await db.query(
+      'quotes',
+      where: 'bookId = ?',
+      whereArgs: [bookId],
+      orderBy: 'createdAt DESC',
+    );
+  }
+
+  Future<void> deleteQuote(int id) async {
+    final db = await database;
+    await db.delete(
+      'quotes',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 }

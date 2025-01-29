@@ -133,6 +133,7 @@ dependencies:
   # For better performance
   flutter_riverpod: ^2.4.9
   photo_view: ^0.14.0 # For zoom and pan
+  screenshot: ^3.0.0
 
 dev_dependencies:
   flutter_test:

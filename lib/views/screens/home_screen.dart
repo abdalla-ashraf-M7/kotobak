@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../database/database_helper.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import '../../routes/app_routes.dart';
 import '../../theme/app_colors.dart';
 import '../../controllers/library_view_controller.dart';
 import '../../controllers/book_controller.dart';
@@ -113,6 +114,15 @@ class HomeScreen extends StatelessWidget {
                   ],
                 ),
               );
+            },
+          ),
+          // Add to _buildBookOptions
+          ListTile(
+            leading: Icon(Icons.format_quote, color: AppColors.primary),
+            title: Text('View Quotes'),
+            onTap: () {
+              Navigator.pop(context);
+              Get.toNamed(Routes.quotes, arguments: book['id']);
             },
           ),
           SizedBox(height: 16),

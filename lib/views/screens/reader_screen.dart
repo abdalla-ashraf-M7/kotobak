@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:kotobak/controllers/quote_controller.dart';
 import 'package:pdf_render/pdf_render.dart';
 import 'package:pdf_render/pdf_render_widgets.dart';
 import 'package:path_provider/path_provider.dart';
@@ -12,6 +13,8 @@ import '../../database/database_helper.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'dart:async';
+import 'package:screenshot/screenshot.dart';
+import '../../views/screens/quotes_screen.dart';
 
 class ReaderScreen extends StatefulWidget {
   final String filePath;
@@ -30,6 +33,7 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   final BookController bookController = Get.find<BookController>();
   final DatabaseHelper _databaseHelper = DatabaseHelper();
+  final ScreenshotController screenshotController = ScreenshotController();
   final controller = PdfViewerController();
   TapDownDetails? _doubleTapDetails;
   bool showControls = true;
@@ -55,9 +59,51 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   void initState() {
     super.initState();
+    Get.put(QuoteController());
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializePdfViewer();
     });
+  }
+
+  Future<void> _captureAndSaveQuote() async {
+    final image = await screenshotController.capture();
+    if (image == null) return;
+
+    final directory = await getApplicationDocumentsDirectory();
+    final imagePath = '${directory.path}/quote_${DateTime.now().millisecondsSinceEpoch}.png';
+    await File(imagePath).writeAsBytes(image);
+
+    Get.dialog(
+      AlertDialog(
+        title: Text('Save Quote'),
+        content: TextField(
+          controller: TextEditingController(),
+          decoration: InputDecoration(labelText: 'Page Number'),
+          keyboardType: TextInputType.number,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final pageNumber = controller.currentPageNumber;
+              final quote = {
+                'bookId': widget.bookId,
+                'pageNumber': pageNumber,
+                'imagePath': imagePath,
+                'createdAt': DateTime.now().millisecondsSinceEpoch,
+              };
+              await Get.find<QuoteController>().addQuote(quote);
+              Get.back();
+            },
+            child: Text('Save'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _initializePdfViewer() async {
@@ -279,6 +325,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 case 'bookmark':
                   _showBookmarks();
                   break;
+                case 'quotes':
+                  Get.to(() => QuotesScreen(bookId: widget.bookId));
+                  break;
                 case 'print':
                   // Print functionality
                   break;
@@ -292,6 +341,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     Icon(Icons.bookmark_border, color: Colors.black87),
                     SizedBox(width: 8),
                     Text('Add Bookmark'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'quotes',
+                child: Row(
+                  children: [
+                    Icon(Icons.format_quote, color: Colors.black87),
+                    SizedBox(width: 8),
+                    Text('View Quotes'),
                   ],
                 ),
               ),
@@ -317,35 +376,36 @@ class _ReaderScreenState extends State<ReaderScreen> {
             Center(child: Text(errorMessage!))
           else
             GestureDetector(
-              onDoubleTapDown: (details) => _doubleTapDetails = details,
-              onDoubleTap: () => controller.ready?.setZoomRatio(
-                zoomRatio: controller.zoomRatio * 1.5,
-                center: _doubleTapDetails!.localPosition,
-              ),
-              child: PdfViewer.openFile(
-                widget.filePath,
-                viewerController: controller,
-                onError: (error) => print(error),
-                params: PdfViewerParams(
-                  padding: 2.0, // Small padding between pages
-                  minScale: 1.0,
-                  maxScale: 3.0,
-                  layoutPages: (viewSize, pages) {
-                    // Custom layout for continuous scrolling with proper spacing
-                    List<Rect> rects = [];
-                    double y = 0;
-                    for (var page in pages) {
-                      final aspectRatio = page.width / page.height;
-                      final width = viewSize.width;
-                      final height = width / aspectRatio;
-                      rects.add(Rect.fromLTWH(0, y, width, height));
-                      y += height + 4; // 4 pixels spacing between pages
-                    }
-                    return rects;
-                  },
-                ),
-              ),
-            ),
+                onDoubleTapDown: (details) => _doubleTapDetails = details,
+                onDoubleTap: () => controller.ready?.setZoomRatio(
+                      zoomRatio: controller.zoomRatio * 1.5,
+                      center: _doubleTapDetails!.localPosition,
+                    ),
+                child: Screenshot(
+                    child: PdfViewer.openFile(
+                      widget.filePath,
+                      viewerController: controller,
+                      onError: (error) => print(error),
+                      params: PdfViewerParams(
+                        padding: 2.0, // Small padding between pages
+                        minScale: 1.0,
+                        maxScale: 3.0,
+                        layoutPages: (viewSize, pages) {
+                          // Custom layout for continuous scrolling with proper spacing
+                          List<Rect> rects = [];
+                          double y = 0;
+                          for (var page in pages) {
+                            final aspectRatio = page.width / page.height;
+                            final width = viewSize.width;
+                            final height = width / aspectRatio;
+                            rects.add(Rect.fromLTWH(0, y, width, height));
+                            y += height + 4; // 4 pixels spacing between pages
+                          }
+                          return rects;
+                        },
+                      ),
+                    ),
+                    controller: screenshotController)),
           if (_selectedText != null)
             Positioned(
               bottom: 80,
@@ -421,6 +481,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       _buildToolbarButton(Icons.comment_outlined, 'Comment', onTap: () {
                         // Comment functionality
                       }),
+                      _buildToolbarButton(Icons.format_quote, 'Quote', onTap: () {
+                        _captureAndSaveQuote();
+                      }),
                       _buildToolbarButton(Icons.highlight_alt_outlined, 'Highlight', onTap: () {
                         setState(() {
                           _isDrawingMode = true;
@@ -443,9 +506,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       }),
                       _buildToolbarButton(Icons.text_fields, 'Text', onTap: () {
                         // Text functionality
-                      }),
-                      _buildToolbarButton(Icons.edit_note, 'Fill & Sign', onTap: () {
-                        // Fill & Sign functionality
                       }),
                       _buildToolbarButton(Icons.more_horiz, 'More', onTap: () {
                         showModalBottomSheet(
