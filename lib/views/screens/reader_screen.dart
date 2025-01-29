@@ -44,6 +44,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
     super.initState();
     _pdfViewerController = PdfViewerController();
     _searchResult = PdfTextSearchResult();
+    _pdfViewerController.addListener(() {
+      if (_pdfViewerController.pageNumber > 0) {
+        _loadDrawingLayers();
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializePdfViewer();
     });
@@ -100,12 +105,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Future<void> _loadDrawingLayers() async {
-    final String bookId = Get.arguments['bookId'];
-    final currentPage = _pdfViewerController.pageNumber;
-    final layers = await _databaseHelper.getDrawingLayers(bookId, currentPage);
-    setState(() {
-      _drawingLayers = layers.map((map) => DrawingLayer.fromMap(map)).toList();
-    });
+    try {
+      final String bookId = Get.arguments['bookId'];
+      // Make sure we have a valid page number
+      if (_pdfViewerController.pageNumber > 0) {
+        final layers = await _databaseHelper.getDrawingLayers(bookId, _pdfViewerController.pageNumber);
+        setState(() {
+          _drawingLayers = layers.map((map) => DrawingLayer.fromMap(map)).toList();
+        });
+      }
+    } catch (e) {
+      print('Error loading drawing layers: $e');
+    }
   }
 
   void _undo() {
@@ -612,21 +623,33 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _saveDrawing() async {
     if (_currentLayer != null && _currentLayer!.points.isNotEmpty) {
-      final String bookId = Get.arguments['bookId'];
-      final layer = _currentLayer!.copyWith(
-        bookId: bookId,
-        page: _pdfViewerController.pageNumber,
-      );
+      try {
+        final String bookId = Get.arguments['bookId'];
+        final currentPage = _pdfViewerController.pageNumber;
 
-      await _databaseHelper.insertDrawingLayer(layer.toMap());
+        if (currentPage <= 0) {
+          print('Invalid page number: $currentPage');
+          return;
+        }
 
-      setState(() {
-        _drawingLayers.add(layer);
-        _currentLayer = null;
-        _undoStack.clear();
-      });
+        final layer = _currentLayer!.copyWith(
+          bookId: bookId,
+          page: currentPage,
+          createdAt: DateTime.now(),
+        );
 
-      await _saveDrawingState();
+        final id = await _databaseHelper.insertDrawingLayer(layer.toMap());
+
+        setState(() {
+          _drawingLayers.add(layer.copyWith(id: id));
+          _currentLayer = null;
+          _undoStack.clear();
+        });
+
+        print('Drawing saved successfully for page $currentPage');
+      } catch (e) {
+        print('Error saving drawing: $e');
+      }
     }
   }
 

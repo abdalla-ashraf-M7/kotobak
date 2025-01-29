@@ -126,7 +126,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // Drawing layers table
+    /* // Drawing layers table
     await db.execute('''
       CREATE TABLE drawing_layers(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -141,7 +141,7 @@ class DatabaseHelper {
         createdAt INTEGER NOT NULL,
         FOREIGN KEY (bookId) REFERENCES books (id) ON DELETE CASCADE
       )
-    ''');
+    '''); */
   }
 
   // Debug method to check table schema
@@ -302,12 +302,15 @@ class DatabaseHelper {
 
   Future<List<Map<String, dynamic>>> getDrawingLayers(String bookId, int page) async {
     final db = await database;
-    return await db.query(
+    print('Fetching drawings for book: $bookId, page: $page');
+    final results = await db.query(
       'drawing_layers',
       where: 'bookId = ? AND page = ?',
       whereArgs: [bookId, page],
       orderBy: 'createdAt ASC',
     );
+    print('Found ${results.length} drawings');
+    return results;
   }
 
   Future<void> deleteDrawingLayers(String bookId, int page) async {
