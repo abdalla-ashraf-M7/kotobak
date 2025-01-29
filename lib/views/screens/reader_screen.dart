@@ -13,6 +13,15 @@ import 'dart:ui' as ui;
 import 'dart:async';
 
 class ReaderScreen extends StatefulWidget {
+  final String filePath;
+  final String bookId;
+
+  const ReaderScreen({
+    Key? key,
+    required this.filePath,
+    required this.bookId,
+  }) : super(key: key);
+
   @override
   _ReaderScreenState createState() => _ReaderScreenState();
 }
@@ -40,6 +49,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   bool _isDrawingEnabled = false;
   bool isDarkMode = false;
   bool isSearchVisible = false;
+  bool _isTextSelectionMode = false;
+  String? _selectedText;
 
   @override
   void initState() {
@@ -56,18 +67,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
         errorMessage = null;
       });
 
-      final String bookId = Get.arguments['bookId'];
-      final String filePath = Get.arguments['filePath'];
-
       // Verify file exists
-      if (!await File(filePath).exists()) {
-        throw Exception('PDF file not found at path: $filePath');
+      if (!await File(widget.filePath).exists()) {
+        throw Exception('PDF file not found at path: ${widget.filePath}');
       }
 
-      String pdfPath = filePath;
+      String pdfPath = widget.filePath;
       try {
         // Check for cached version
-        final cache = await _databaseHelper.getBookCache(bookId);
+        final cache = await _databaseHelper.getBookCache(widget.bookId);
 
         if (cache != null && cache['cachedPath'] != null) {
           final cacheFile = File(cache['cachedPath']);
@@ -77,7 +85,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         }
       } catch (e) {
         print('Cache error (non-fatal): $e');
-        pdfPath = filePath;
+        pdfPath = widget.filePath;
       }
 
       // Load drawings
@@ -101,10 +109,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _loadDrawingLayers() async {
     try {
-      final String bookId = Get.arguments['bookId'];
-      // Make sure we have a valid page number
       if (_pdfViewerController.isCompleted) {
-        final layers = await _databaseHelper.getDrawingLayers(bookId, currentPage! + 1);
+        final layers = await _databaseHelper.getDrawingLayers(widget.bookId, currentPage! + 1);
         setState(() {
           _drawingLayers = layers.map((map) => DrawingLayer.fromMap(map)).toList();
         });
@@ -192,7 +198,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _addAnnotation(AnnotationType type) async {
-    final String bookId = Get.arguments['bookId'];
+    final String bookId = widget.bookId;
     final annotation = Annotation(
       bookId: bookId,
       page: currentPage! + 1,
@@ -207,16 +213,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final String? filePath = Get.arguments['filePath'];
-    final String bookId = Get.arguments['bookId'];
-
-    if (filePath == null) {
-      return Scaffold(
-        appBar: AppBar(title: Text('Reader')),
-        body: Center(child: Text('No PDF file selected.')),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: isDarkMode ? Colors.black : Colors.white,
@@ -321,12 +317,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
             Center(child: Text(errorMessage!))
           else
             PDFView(
-              filePath: filePath,
+              filePath: widget.filePath,
               enableSwipe: true,
               swipeHorizontal: false,
-              autoSpacing: true,
-              pageFling: true,
-              pageSnap: true,
+              autoSpacing: false,
+              pageFling: false,
+              pageSnap: false,
               defaultPage: currentPage ?? 0,
               fitPolicy: FitPolicy.BOTH,
               preventLinkNavigation: false,
@@ -351,12 +347,67 @@ class _ReaderScreenState extends State<ReaderScreen> {
               },
               onPageChanged: (int? page, int? total) {
                 if (page != null && total != null) {
-                  setState(() => currentPage = page);
+                  setState(() {
+                    currentPage = page;
+                    _selectedText = null; // Clear selection on page change
+                  });
                   final progress = page / total;
-                  bookController.updateProgress(bookId, progress);
+                  bookController.updateProgress(widget.bookId, progress);
                   _loadDrawingLayers();
                 }
               },
+              onLinkHandler: (String? uri) {
+                print('goto uri: $uri');
+              },
+            ),
+          if (_selectedText != null)
+            Positioned(
+              bottom: 80,
+              left: 16,
+              right: 16,
+              child: Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isDarkMode ? Colors.black87 : Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.copy),
+                      onPressed: () {
+                        if (_selectedText != null) {
+                          // Copy to clipboard
+                          // Clipboard.setData(ClipboardData(text: _selectedText));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Text copied to clipboard')),
+                          );
+                        }
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.highlight),
+                      onPressed: () {
+                        // Implement highlight functionality
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.share),
+                      onPressed: () {
+                        // Implement share functionality
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ),
           if (_isDrawingMode) _buildDrawingCanvas(),
           Positioned(
@@ -479,6 +530,22 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ),
             ),
           ),
+          if (!_isDrawingMode)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onLongPressStart: (details) async {
+                  final controller = await _pdfViewerController.future;
+                  final currentPage = await controller.getCurrentPage();
+                  // Note: Text selection is not directly supported by flutter_pdfview
+                  // You would need to implement custom text extraction if needed
+                  setState(() {
+                    _isTextSelectionMode = true;
+                  });
+                  _showTextSelectionToolbar(details.globalPosition);
+                },
+              ),
+            ),
         ],
       ),
     );
@@ -531,7 +598,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       builder: (context) => AlertDialog(
         title: Text('Bookmarks'),
         content: FutureBuilder<List<Map<String, dynamic>>>(
-          future: _databaseHelper.getBookmarks(Get.arguments['bookId']),
+          future: _databaseHelper.getBookmarks(widget.bookId),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return Center(child: CircularProgressIndicator());
@@ -579,7 +646,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void _handleDrawingStart(DragStartDetails details) {
     setState(() {
       _currentLayer = DrawingLayer(
-        bookId: Get.arguments['bookId'],
+        bookId: widget.bookId,
         page: currentPage! + 1,
         layerName: 'Layer ${_drawingLayers.length + 1}',
         strokeColor: _drawingTool == 'eraser' ? Colors.transparent : _selectedColor,
@@ -632,7 +699,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Future<void> _saveDrawing() async {
     if (_currentLayer != null && _currentLayer!.points.isNotEmpty) {
       try {
-        final String bookId = Get.arguments['bookId'];
+        final String bookId = widget.bookId;
         final currentPage = this.currentPage! + 1;
 
         if (currentPage <= 0) {
@@ -662,7 +729,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Future<void> _saveDrawingState() async {
-    final String bookId = Get.arguments['bookId'];
+    final String bookId = widget.bookId;
     final int currentPage = this.currentPage! + 1;
 
     await _databaseHelper.deleteDrawingLayers(bookId, currentPage);
@@ -670,6 +737,42 @@ class _ReaderScreenState extends State<ReaderScreen> {
     for (var layer in _drawingLayers) {
       await _databaseHelper.insertDrawingLayer(layer.toMap());
     }
+  }
+
+  void _showTextSelectionToolbar(Offset point) {
+    showMenu(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        point.dx,
+        point.dy,
+        point.dx + 1,
+        point.dy + 1,
+      ),
+      items: [
+        PopupMenuItem(
+          child: Text('Copy'),
+          onTap: () {
+            // Implement copy functionality
+          },
+        ),
+        PopupMenuItem(
+          child: Text('Highlight'),
+          onTap: () {
+            // Implement highlight functionality
+          },
+        ),
+        PopupMenuItem(
+          child: Text('Share'),
+          onTap: () {
+            // Implement share functionality
+          },
+        ),
+      ],
+    ).then((_) {
+      setState(() {
+        _isTextSelectionMode = false;
+      });
+    });
   }
 
   @override

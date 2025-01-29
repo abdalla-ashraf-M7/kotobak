@@ -25,7 +25,13 @@ abstract class AppPages {
     ),
     GetPage(
       name: Routes.reader,
-      page: () => ReaderScreen(),
+      page: () {
+        final args = Get.arguments as Map<String, dynamic>;
+        return ReaderScreen(
+          filePath: args['filePath'] as String,
+          bookId: args['bookId'] as String,
+        );
+      },
       binding: ReaderBinding(),
       transition: Transition.rightToLeftWithFade,
     ),
