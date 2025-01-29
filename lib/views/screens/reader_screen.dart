@@ -20,6 +20,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   String? errorMessage;
   final TextEditingController _searchController = TextEditingController();
   bool _isSelectionMode = true;
+  bool _isDrawingMode = false;
+  List<DrawingPoints> _points = [];
+  Color _selectedColor = Colors.red;
+  double _strokeWidth = 3.0;
 
   @override
   void initState() {
@@ -61,6 +65,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
     });
   }
 
+  void _toggleDrawingMode() {
+    setState(() {
+      _isDrawingMode = !_isDrawingMode;
+      if (_isDrawingMode) {
+        _pdfViewerController.zoomLevel = 1.0; // Reset zoom when drawing
+      }
+    });
+  }
+
   void _showBookmarks() {
     // Show bookmarks dialog
     showDialog(
@@ -93,6 +106,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
         ],
       ),
     );
+  }
+
+  void _showColorPicker() {
+    // Implement color picker logic
+  }
+
+  void _saveDrawing() {
+    // Implement save drawing logic
   }
 
   @override
@@ -147,9 +168,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   },
                 ),
                 IconButton(
-                  icon: Icon(Icons.touch_app),
-                  onPressed: _toggleSelectionMode,
+                  icon: Icon(_isDrawingMode ? Icons.edit_off : Icons.edit),
+                  onPressed: _toggleDrawingMode,
                 ),
+                if (_isDrawingMode)
+                  IconButton(
+                    icon: Icon(Icons.color_lens),
+                    onPressed: _showColorPicker,
+                  ),
               ]
             : [
                 IconButton(
@@ -206,6 +232,37 @@ class _ReaderScreenState extends State<ReaderScreen> {
               canShowScrollStatus: true,
               enableDoubleTapZooming: true,
               pageSpacing: 4,
+            ),
+          if (_isDrawingMode)
+            GestureDetector(
+              onPanStart: (details) {
+                setState(() {
+                  _points.add(DrawingPoints(
+                    points: details.localPosition,
+                    paint: Paint()
+                      ..color = _selectedColor
+                      ..strokeWidth = _strokeWidth
+                      ..strokeCap = StrokeCap.round,
+                  ));
+                });
+              },
+              onPanUpdate: (details) {
+                setState(() {
+                  _points.add(DrawingPoints(
+                    points: details.localPosition,
+                    paint: Paint()
+                      ..color = _selectedColor
+                      ..strokeWidth = _strokeWidth
+                      ..strokeCap = StrokeCap.round,
+                  ));
+                });
+              },
+              child: CustomPaint(
+                size: Size.infinite,
+                painter: DrawingPainter(
+                  pointsList: _points,
+                ),
+              ),
             ),
           if (showControls)
             Positioned(
@@ -301,6 +358,45 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ),
         ],
       ),
+      floatingActionButton: _isDrawingMode
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                FloatingActionButton(
+                  heroTag: 'clear',
+                  child: Icon(Icons.clear),
+                  onPressed: () => setState(() => _points.clear()),
+                ),
+                SizedBox(height: 10),
+                FloatingActionButton(
+                  heroTag: 'save',
+                  child: Icon(Icons.save),
+                  onPressed: _saveDrawing,
+                ),
+              ],
+            )
+          : null,
     );
   }
+}
+
+class DrawingPoints {
+  Offset points;
+  Paint paint;
+  DrawingPoints({required this.points, required this.paint});
+}
+
+class DrawingPainter extends CustomPainter {
+  final List<DrawingPoints> pointsList;
+  DrawingPainter({required this.pointsList});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (int i = 0; i < pointsList.length - 1; i++) {
+      canvas.drawLine(pointsList[i].points, pointsList[i + 1].points, pointsList[i].paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
