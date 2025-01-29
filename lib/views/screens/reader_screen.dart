@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:get/get.dart';
-import 'home_screen.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import '../../theme/app_colors.dart';
+import '../../controllers/book_controller.dart';
+import 'dart:io';
 
 class ReaderScreen extends StatefulWidget {
   @override
@@ -9,9 +11,89 @@ class ReaderScreen extends StatefulWidget {
 }
 
 class _ReaderScreenState extends State<ReaderScreen> {
-  int currentPage = 0;
-  int totalPages = 0;
+  final BookController bookController = Get.find<BookController>();
+  late PdfViewerController _pdfViewerController;
+  late PdfTextSearchResult _searchResult;
   bool showControls = true;
+  bool showSearchBar = false;
+  bool isLoading = true;
+  String? errorMessage;
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSelectionMode = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _pdfViewerController = PdfViewerController();
+    _searchResult = PdfTextSearchResult();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializePdfViewer();
+    });
+  }
+
+  Future<void> _initializePdfViewer() async {
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+        errorMessage = 'Error loading PDF: $e';
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _pdfViewerController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _isSelectionMode = !_isSelectionMode;
+    });
+  }
+
+  void _showBookmarks() {
+    // Show bookmarks dialog
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Bookmarks'),
+        content: Text('Bookmarks feature coming soon!'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showThumbnails() {
+    // Show thumbnails dialog
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Page Thumbnails'),
+        content: Text('Page thumbnails feature coming soon!'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,50 +113,100 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Reader'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.bookmark_add),
-            onPressed: () {
-              bookController.addBookmark(bookId, currentPage);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Bookmark added')),
-              );
-            },
-          ),
-        ],
+        title: !showSearchBar
+            ? Text('Reader')
+            : TextField(
+                controller: _searchController,
+                style: TextStyle(color: AppColors.onPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Search...',
+                  hintStyle: TextStyle(color: AppColors.onPrimary.withOpacity(0.6)),
+                  border: InputBorder.none,
+                ),
+                onChanged: (value) {
+                  if (value.isNotEmpty) {
+                    _searchResult = _pdfViewerController.searchText(value);
+                    setState(() {});
+                  }
+                },
+              ),
+        actions: !showSearchBar
+            ? [
+                IconButton(
+                  icon: Icon(Icons.search),
+                  onPressed: () => setState(() => showSearchBar = true),
+                ),
+                IconButton(
+                  icon: Icon(Icons.bookmark_add),
+                  onPressed: () {
+                    final currentPage = _pdfViewerController.pageNumber;
+                    bookController.addBookmark(bookId, currentPage - 1);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Bookmark added')),
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.touch_app),
+                  onPressed: _toggleSelectionMode,
+                ),
+              ]
+            : [
+                IconButton(
+                  icon: Icon(Icons.clear),
+                  onPressed: () {
+                    setState(() {
+                      showSearchBar = false;
+                      _searchController.clear();
+                      _searchResult.clear();
+                    });
+                  },
+                ),
+                if (_searchResult.hasResult)
+                  IconButton(
+                    icon: Icon(Icons.keyboard_arrow_up),
+                    onPressed: () => _searchResult.previousInstance(),
+                  ),
+                if (_searchResult.hasResult)
+                  IconButton(
+                    icon: Icon(Icons.keyboard_arrow_down),
+                    onPressed: () => _searchResult.nextInstance(),
+                  ),
+              ],
       ),
       body: Stack(
         children: [
-          PDFView(
-            filePath: filePath,
-            onRender: (pages) {
-              setState(() {
-                totalPages = pages!;
-              });
-            },
-            onViewCreated: (controller) {
-              controller.setPage(currentPage);
-            },
-            onPageChanged: (page, total) {
-              setState(() {
-                currentPage = page!;
-                totalPages = total!;
-              });
-              // Update progress and reading history
-              if (page != null) {
-                final progress = (page + 1) / total!;
+          if (isLoading)
+            Center(child: CircularProgressIndicator())
+          else if (errorMessage != null)
+            Center(child: Text(errorMessage!))
+          else
+            SfPdfViewer.file(
+              File(filePath),
+              controller: _pdfViewerController,
+              onPageChanged: (PdfPageChangedDetails details) {
+                final progress = details.newPageNumber / _pdfViewerController.pageCount;
                 bookController.updateProgress(bookId, progress);
-                bookController.addReadingHistory(bookId, page);
-              }
-            },
-            onError: (error) {
-              print('PDF Error: $error');
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to load PDF: $error')),
-              );
-            },
-          ),
+                bookController.addReadingHistory(bookId, details.newPageNumber - 1);
+              },
+              onDocumentLoaded: (PdfDocumentLoadedDetails details) {
+                setState(() {
+                  isLoading = false;
+                });
+              },
+              onDocumentLoadFailed: (PdfDocumentLoadFailedDetails details) {
+                setState(() {
+                  isLoading = false;
+                  errorMessage = details.error;
+                });
+              },
+              enableTextSelection: _isSelectionMode,
+              enableDocumentLinkAnnotation: true,
+              canShowScrollHead: true,
+              canShowScrollStatus: true,
+              enableDoubleTapZooming: true,
+              pageSpacing: 4,
+            ),
           if (showControls)
             Positioned(
               bottom: 0,
@@ -88,18 +220,62 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   children: [
                     IconButton(
                       icon: Icon(Icons.bookmark_outline, color: Colors.white),
-                      onPressed: () {},
+                      onPressed: _showBookmarks,
                     ),
                     IconButton(
-                      icon: Icon(Icons.color_lens_outlined, color: Colors.white),
-                      onPressed: () {},
+                      icon: Icon(Icons.view_sidebar_outlined, color: Colors.white),
+                      onPressed: _showThumbnails,
                     ),
                     IconButton(
-                      icon: Icon(Icons.text_fields, color: Colors.white),
-                      onPressed: () {},
+                      icon: Icon(Icons.zoom_out, color: Colors.white),
+                      onPressed: () {
+                        _pdfViewerController.zoomLevel = _pdfViewerController.zoomLevel - 0.25;
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.zoom_in, color: Colors.white),
+                      onPressed: () {
+                        _pdfViewerController.zoomLevel = _pdfViewerController.zoomLevel + 0.25;
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.skip_next, color: Colors.white),
+                      onPressed: () {
+                        final pageController = TextEditingController();
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text('Go to Page'),
+                            content: TextField(
+                              controller: pageController,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                labelText: 'Page Number',
+                                hintText: '1 - ${_pdfViewerController.pageCount}',
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  final page = int.tryParse(pageController.text);
+                                  if (page != null && page > 0 && page <= _pdfViewerController.pageCount) {
+                                    _pdfViewerController.jumpToPage(page);
+                                  }
+                                  Navigator.pop(context);
+                                },
+                                child: Text('Go'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                     Text(
-                      '$currentPage / $totalPages',
+                      '${_pdfViewerController.pageNumber} / ${_pdfViewerController.pageCount}',
                       style: TextStyle(color: Colors.white),
                     ),
                   ],
