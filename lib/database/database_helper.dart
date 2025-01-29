@@ -19,7 +19,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'library.db');
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -29,6 +29,44 @@ class DatabaseHelper {
     if (oldVersion < 2) {
       // Add coverImagePath column to books table
       await db.execute('ALTER TABLE books ADD COLUMN coverImagePath TEXT;');
+    }
+    if (oldVersion < 3) {
+      // Add cache-related columns
+      await db.execute('ALTER TABLE books ADD COLUMN cachedPath TEXT;');
+      await db.execute('ALTER TABLE books ADD COLUMN lastCached INTEGER;');
+
+      // Create annotations table
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS annotations(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          bookId TEXT NOT NULL,
+          page INTEGER NOT NULL,
+          type TEXT NOT NULL,
+          color INTEGER NOT NULL,
+          opacity REAL NOT NULL,
+          points TEXT NOT NULL,
+          strokeWidth REAL NOT NULL,
+          createdAt INTEGER NOT NULL,
+          FOREIGN KEY (bookId) REFERENCES books (id) ON DELETE CASCADE
+        )
+      ''');
+
+      // Create drawing layers table
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS drawing_layers(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          bookId TEXT NOT NULL,
+          page INTEGER NOT NULL,
+          layerName TEXT NOT NULL,
+          isVisible BOOLEAN NOT NULL DEFAULT 1,
+          strokeColor INTEGER NOT NULL,
+          strokeWidth REAL NOT NULL,
+          opacity REAL NOT NULL,
+          points TEXT NOT NULL,
+          createdAt INTEGER NOT NULL,
+          FOREIGN KEY (bookId) REFERENCES books (id) ON DELETE CASCADE
+        )
+      ''');
     }
   }
 
@@ -43,7 +81,9 @@ class DatabaseHelper {
         coverImagePath TEXT,
         progress REAL DEFAULT 0.0,
         lastRead INTEGER,
-        createdAt INTEGER
+        createdAt INTEGER,
+        cachedPath TEXT,
+        lastCached INTEGER
       )
     ''');
 
@@ -66,6 +106,39 @@ class DatabaseHelper {
         bookId TEXT NOT NULL,
         page INTEGER NOT NULL,
         timestamp INTEGER NOT NULL,
+        FOREIGN KEY (bookId) REFERENCES books (id) ON DELETE CASCADE
+      )
+    ''');
+
+    // Annotations table
+    await db.execute('''
+      CREATE TABLE annotations(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bookId TEXT NOT NULL,
+        page INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        color INTEGER NOT NULL,
+        opacity REAL NOT NULL,
+        points TEXT NOT NULL,
+        strokeWidth REAL NOT NULL,
+        createdAt INTEGER NOT NULL,
+        FOREIGN KEY (bookId) REFERENCES books (id) ON DELETE CASCADE
+      )
+    ''');
+
+    // Drawing layers table
+    await db.execute('''
+      CREATE TABLE drawing_layers(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bookId TEXT NOT NULL,
+        page INTEGER NOT NULL,
+        layerName TEXT NOT NULL,
+        isVisible BOOLEAN NOT NULL DEFAULT 1,
+        strokeColor INTEGER NOT NULL,
+        strokeWidth REAL NOT NULL,
+        opacity REAL NOT NULL,
+        points TEXT NOT NULL,
+        createdAt INTEGER NOT NULL,
         FOREIGN KEY (bookId) REFERENCES books (id) ON DELETE CASCADE
       )
     ''');
@@ -184,5 +257,100 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [bookId],
     );
+  }
+
+  // Annotation operations
+  Future<int> insertAnnotation(Map<String, dynamic> annotation) async {
+    final db = await database;
+    return await db.insert('annotations', annotation);
+  }
+
+  Future<List<Map<String, dynamic>>> getAnnotations(String bookId, int page) async {
+    final db = await database;
+    return await db.query(
+      'annotations',
+      where: 'bookId = ? AND page = ?',
+      whereArgs: [bookId, page],
+      orderBy: 'createdAt ASC',
+    );
+  }
+
+  Future<void> updateAnnotation(int id, Map<String, dynamic> annotation) async {
+    final db = await database;
+    await db.update(
+      'annotations',
+      annotation,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> deleteAnnotation(int id) async {
+    final db = await database;
+    await db.delete(
+      'annotations',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // Drawing layer operations
+  Future<int> insertDrawingLayer(Map<String, dynamic> layer) async {
+    final db = await database;
+    return await db.insert('drawing_layers', layer);
+  }
+
+  Future<List<Map<String, dynamic>>> getDrawingLayers(String bookId, int page) async {
+    final db = await database;
+    return await db.query(
+      'drawing_layers',
+      where: 'bookId = ? AND page = ?',
+      whereArgs: [bookId, page],
+      orderBy: 'createdAt ASC',
+    );
+  }
+
+  Future<void> updateDrawingLayer(int id, Map<String, dynamic> layer) async {
+    final db = await database;
+    await db.update(
+      'drawing_layers',
+      layer,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> deleteDrawingLayer(int id) async {
+    final db = await database;
+    await db.delete(
+      'drawing_layers',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // Cache operations
+  Future<void> updateBookCache(String bookId, String cachedPath) async {
+    final db = await database;
+    await db.update(
+      'books',
+      {
+        'cachedPath': cachedPath,
+        'lastCached': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'id = ?',
+      whereArgs: [bookId],
+    );
+  }
+
+  Future<Map<String, dynamic>?> getBookCache(String bookId) async {
+    final db = await database;
+    final results = await db.query(
+      'books',
+      columns: ['cachedPath', 'lastCached'],
+      where: 'id = ?',
+      whereArgs: [bookId],
+    );
+    return results.isNotEmpty ? results.first : null;
   }
 }

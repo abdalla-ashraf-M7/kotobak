@@ -125,6 +125,7 @@ dependencies:
   device_info_plus: ^9.0.2
   # For better PDF handling
   flutter_cache_manager: ^3.3.1
+  flutter_colorpicker: ^1.0.3
 
   # For improved drawing
   perfect_freehand: ^1.0.4
