@@ -310,20 +310,20 @@ class DatabaseHelper {
     );
   }
 
+  Future<void> deleteDrawingLayers(String bookId, int page) async {
+    final db = await database;
+    await db.delete(
+      'drawing_layers',
+      where: 'bookId = ? AND page = ?',
+      whereArgs: [bookId, page],
+    );
+  }
+
   Future<void> updateDrawingLayer(int id, Map<String, dynamic> layer) async {
     final db = await database;
     await db.update(
       'drawing_layers',
       layer,
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-  }
-
-  Future<void> deleteDrawingLayer(int id) async {
-    final db = await database;
-    await db.delete(
-      'drawing_layers',
       where: 'id = ?',
       whereArgs: [id],
     );
