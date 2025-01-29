@@ -164,6 +164,18 @@ class DatabaseHelper {
     for (var column in tableInfo) {
       print('Column: ${column['name']}, Type: ${column['type']}');
     }
+
+    // Add quotes table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS quotes(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bookId TEXT NOT NULL,
+        pageNumber INTEGER NOT NULL,
+        imagePath TEXT NOT NULL,
+        createdAt INTEGER NOT NULL,
+        FOREIGN KEY (bookId) REFERENCES books (id) ON DELETE CASCADE
+      )
+    ''');
   }
 
   // Book operations
