@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart' hide Annotation;
+import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:perfect_freehand/perfect_freehand.dart';
@@ -10,6 +10,7 @@ import '../../models/annotation.dart';
 import '../../database/database_helper.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
+import 'dart:async';
 
 class ReaderScreen extends StatefulWidget {
   @override
@@ -19,8 +20,9 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   final BookController bookController = Get.find<BookController>();
   final DatabaseHelper _databaseHelper = DatabaseHelper();
-  late PdfViewerController _pdfViewerController;
-  late PdfTextSearchResult _searchResult;
+  final Completer<PDFViewController> _pdfViewerController = Completer<PDFViewController>();
+  int? pages = 0;
+  int? currentPage = 0;
   bool showControls = true;
   bool showSearchBar = false;
   bool isLoading = true;
@@ -42,13 +44,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   void initState() {
     super.initState();
-    _pdfViewerController = PdfViewerController();
-    _searchResult = PdfTextSearchResult();
-    _pdfViewerController.addListener(() {
-      if (_pdfViewerController.pageNumber > 0) {
-        _loadDrawingLayers();
-      }
-    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializePdfViewer();
     });
@@ -108,8 +103,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     try {
       final String bookId = Get.arguments['bookId'];
       // Make sure we have a valid page number
-      if (_pdfViewerController.pageNumber > 0) {
-        final layers = await _databaseHelper.getDrawingLayers(bookId, _pdfViewerController.pageNumber);
+      if (_pdfViewerController.isCompleted) {
+        final layers = await _databaseHelper.getDrawingLayers(bookId, currentPage! + 1);
         setState(() {
           _drawingLayers = layers.map((map) => DrawingLayer.fromMap(map)).toList();
         });
@@ -200,7 +195,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final String bookId = Get.arguments['bookId'];
     final annotation = Annotation(
       bookId: bookId,
-      page: _pdfViewerController.pageNumber,
+      page: currentPage! + 1,
       type: type,
       color: _selectedColor,
       opacity: _opacity,
@@ -277,10 +272,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   ),
                 ),
                 onChanged: (value) {
-                  if (value.isNotEmpty) {
-                    _searchResult = _pdfViewerController.searchText(value);
-                    setState(() {});
-                  }
+                  // Search functionality will need to be implemented differently
                 },
               ),
         actions: [
@@ -328,28 +320,43 @@ class _ReaderScreenState extends State<ReaderScreen> {
           else if (errorMessage != null)
             Center(child: Text(errorMessage!))
           else
-            SfPdfViewer.file(
-              File(filePath),
-              controller: _pdfViewerController,
-              onPageChanged: (PdfPageChangedDetails details) {
-                final progress = details.newPageNumber / _pdfViewerController.pageCount;
-                bookController.updateProgress(bookId, progress);
-              },
-              onDocumentLoaded: (PdfDocumentLoadedDetails details) {
-                setState(() => isLoading = false);
-              },
-              onDocumentLoadFailed: (PdfDocumentLoadFailedDetails details) {
+            PDFView(
+              filePath: filePath,
+              enableSwipe: true,
+              swipeHorizontal: false,
+              autoSpacing: true,
+              pageFling: true,
+              pageSnap: true,
+              defaultPage: currentPage ?? 0,
+              fitPolicy: FitPolicy.BOTH,
+              preventLinkNavigation: false,
+              onRender: (_pages) {
                 setState(() {
+                  pages = _pages;
                   isLoading = false;
-                  errorMessage = details.error;
                 });
               },
-              enableTextSelection: true,
-              canShowScrollHead: true,
-              canShowScrollStatus: true,
-              enableDoubleTapZooming: true,
-              pageLayoutMode: PdfPageLayoutMode.continuous,
-              scrollDirection: PdfScrollDirection.vertical,
+              onError: (error) {
+                setState(() {
+                  errorMessage = error.toString();
+                });
+                print(error.toString());
+              },
+              onPageError: (page, error) {
+                print('$page: ${error.toString()}');
+              },
+              onViewCreated: (PDFViewController pdfViewController) {
+                _pdfViewerController.complete(pdfViewController);
+                setState(() => isLoading = false);
+              },
+              onPageChanged: (int? page, int? total) {
+                if (page != null && total != null) {
+                  setState(() => currentPage = page);
+                  final progress = page / total;
+                  bookController.updateProgress(bookId, progress);
+                  _loadDrawingLayers();
+                }
+              },
             ),
           if (_isDrawingMode) _buildDrawingCanvas(),
           Positioned(
@@ -549,8 +556,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       _showBookmarks(); // Refresh the list
                     },
                   ),
-                  onTap: () {
-                    _pdfViewerController.jumpToPage(bookmark['page'] + 1);
+                  onTap: () async {
+                    final controller = await _pdfViewerController.future;
+                    await controller.setPage(bookmark['page']);
                     Navigator.pop(context);
                   },
                 );
@@ -572,7 +580,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     setState(() {
       _currentLayer = DrawingLayer(
         bookId: Get.arguments['bookId'],
-        page: _pdfViewerController.pageNumber,
+        page: currentPage! + 1,
         layerName: 'Layer ${_drawingLayers.length + 1}',
         strokeColor: _drawingTool == 'eraser' ? Colors.transparent : _selectedColor,
         strokeWidth: _strokeWidth,
@@ -625,7 +633,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (_currentLayer != null && _currentLayer!.points.isNotEmpty) {
       try {
         final String bookId = Get.arguments['bookId'];
-        final currentPage = _pdfViewerController.pageNumber;
+        final currentPage = this.currentPage! + 1;
 
         if (currentPage <= 0) {
           print('Invalid page number: $currentPage');
@@ -655,7 +663,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _saveDrawingState() async {
     final String bookId = Get.arguments['bookId'];
-    final int currentPage = _pdfViewerController.pageNumber;
+    final int currentPage = this.currentPage! + 1;
 
     await _databaseHelper.deleteDrawingLayers(bookId, currentPage);
 
@@ -666,7 +674,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   void dispose() {
-    _pdfViewerController.dispose();
     _searchController.dispose();
     super.dispose();
   }
