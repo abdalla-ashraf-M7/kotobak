@@ -36,6 +36,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   double _strokeWidth = 3.0;
   double _opacity = 1.0;
   String _currentTool = 'pen';
+  bool isDarkMode = false;
+  bool isSearchVisible = false;
 
   @override
   void initState() {
@@ -219,7 +221,104 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
 
     return Scaffold(
-      appBar: _buildAppBar(),
+      appBar: AppBar(
+        backgroundColor: isDarkMode ? Colors.black : Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: isDarkMode ? Colors.white : Colors.black),
+          onPressed: () => Get.back(),
+        ),
+        title: !isSearchVisible
+            ? Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                      color: isDarkMode ? Colors.white : Colors.black,
+                    ),
+                    onPressed: () => setState(() => isDarkMode = !isDarkMode),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.view_agenda_outlined, color: isDarkMode ? Colors.white : Colors.black),
+                    onPressed: () {
+                      // Toggle between single and continuous page layout
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.search, color: isDarkMode ? Colors.white : Colors.black),
+                    onPressed: () => setState(() => isSearchVisible = true),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.share, color: isDarkMode ? Colors.white : Colors.black),
+                    onPressed: () {
+                      // Share functionality
+                    },
+                  ),
+                ],
+              )
+            : TextField(
+                controller: _searchController,
+                style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+                decoration: InputDecoration(
+                  hintText: 'Search...',
+                  hintStyle: TextStyle(color: isDarkMode ? Colors.white70 : Colors.black54),
+                  border: InputBorder.none,
+                  suffixIcon: IconButton(
+                    icon: Icon(Icons.close),
+                    onPressed: () {
+                      setState(() {
+                        isSearchVisible = false;
+                        _searchController.clear();
+                      });
+                    },
+                  ),
+                ),
+                onChanged: (value) {
+                  if (value.isNotEmpty) {
+                    _searchResult = _pdfViewerController.searchText(value);
+                    setState(() {});
+                  }
+                },
+              ),
+        actions: [
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: isDarkMode ? Colors.white : Colors.black),
+            onSelected: (value) {
+              switch (value) {
+                case 'bookmark':
+                  // Add bookmark
+                  break;
+                case 'print':
+                  // Print functionality
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'bookmark',
+                child: Row(
+                  children: [
+                    Icon(Icons.bookmark_border, color: Colors.black87),
+                    SizedBox(width: 8),
+                    Text('Add Bookmark'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'print',
+                child: Row(
+                  children: [
+                    Icon(Icons.print, color: Colors.black87),
+                    SizedBox(width: 8),
+                    Text('Print'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: Stack(
         children: [
           if (isLoading)
@@ -230,7 +329,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
             SfPdfViewer.file(
               File(filePath),
               controller: _pdfViewerController,
-              onPageChanged: _handlePageChanged,
+              onPageChanged: (PdfPageChangedDetails details) {
+                final progress = details.newPageNumber / _pdfViewerController.pageCount;
+                bookController.updateProgress(bookId, progress);
+              },
               onDocumentLoaded: (PdfDocumentLoadedDetails details) {
                 setState(() => isLoading = false);
               },
@@ -240,88 +342,87 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   errorMessage = details.error;
                 });
               },
-              enableTextSelection: _isSelectionMode,
+              enableTextSelection: true,
               canShowScrollHead: true,
               canShowScrollStatus: true,
               enableDoubleTapZooming: true,
-              pageSpacing: 4,
+              pageLayoutMode: PdfPageLayoutMode.continuous,
+              scrollDirection: PdfScrollDirection.vertical,
             ),
           if (_isDrawingMode) _buildDrawingCanvas(),
           if (showControls) _buildControls(),
           _buildToolbar(),
-        ],
-      ),
-    );
-  }
-
-  AppBar _buildAppBar() {
-    return AppBar(
-      title: !showSearchBar
-          ? Text('Reader')
-          : TextField(
-              controller: _searchController,
-              style: TextStyle(color: AppColors.onPrimary),
-              decoration: InputDecoration(
-                hintText: 'Search...',
-                hintStyle: TextStyle(color: AppColors.onPrimary.withOpacity(0.6)),
-                border: InputBorder.none,
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDarkMode ? Colors.black87 : Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 4,
+                    offset: Offset(0, -2),
+                  ),
+                ],
               ),
-              onChanged: (value) {
-                if (value.isNotEmpty) {
-                  _searchResult = _pdfViewerController.searchText(value);
-                  setState(() {});
-                }
-              },
+              padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildToolbarButton(Icons.comment_outlined, 'Comment', onTap: () {
+                    // Comment functionality
+                  }),
+                  _buildToolbarButton(Icons.highlight_alt_outlined, 'Highlight', onTap: () {
+                    // Highlight functionality
+                  }),
+                  _buildToolbarButton(Icons.draw_outlined, 'Draw', onTap: () {
+                    // Draw functionality
+                  }),
+                  _buildToolbarButton(Icons.text_fields, 'Text', onTap: () {
+                    // Text functionality
+                  }),
+                  _buildToolbarButton(Icons.edit_note, 'Fill & Sign', onTap: () {
+                    // Fill & Sign functionality
+                  }),
+                  _buildToolbarButton(Icons.more_horiz, 'More', onTap: () {
+                    // Show more tools
+                    showModalBottomSheet(
+                      context: context,
+                      builder: (context) => Container(
+                        padding: EdgeInsets.all(16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ListTile(
+                              leading: Icon(Icons.bookmark_border),
+                              title: Text('Bookmarks'),
+                              onTap: () {
+                                Navigator.pop(context);
+                                _showBookmarks();
+                              },
+                            ),
+                            ListTile(
+                              leading: Icon(Icons.zoom_in),
+                              title: Text('Zoom'),
+                              onTap: () {
+                                Navigator.pop(context);
+                                // Show zoom controls
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
-      actions: _buildAppBarActions(),
+          ),
+        ],
+      ),
     );
-  }
-
-  List<Widget> _buildAppBarActions() {
-    if (showSearchBar) {
-      return [
-        IconButton(
-          icon: Icon(Icons.clear),
-          onPressed: () {
-            setState(() {
-              showSearchBar = false;
-              _searchController.clear();
-              _searchResult.clear();
-            });
-          },
-        ),
-        if (_searchResult.hasResult) ...[
-          IconButton(
-            icon: Icon(Icons.keyboard_arrow_up),
-            onPressed: () => _searchResult.previousInstance(),
-          ),
-          IconButton(
-            icon: Icon(Icons.keyboard_arrow_down),
-            onPressed: () => _searchResult.nextInstance(),
-          ),
-        ],
-      ];
-    }
-
-    return [
-      IconButton(
-        icon: Icon(Icons.search),
-        onPressed: () => setState(() => showSearchBar = true),
-      ),
-      IconButton(
-        icon: Icon(Icons.bookmark_add),
-        onPressed: _addBookmark,
-      ),
-      PopupMenuButton<String>(
-        onSelected: (tool) => setState(() => _currentTool = tool),
-        itemBuilder: (context) => [
-          PopupMenuItem(value: 'pen', child: Text('Pen')),
-          PopupMenuItem(value: 'highlighter', child: Text('Highlighter')),
-          PopupMenuItem(value: 'eraser', child: Text('Eraser')),
-          PopupMenuItem(value: 'shapes', child: Text('Shapes')),
-        ],
-      ),
-    ];
   }
 
   Widget _buildDrawingCanvas() {
@@ -454,21 +555,30 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  void _handlePageChanged(PdfPageChangedDetails details) {
-    final progress = details.newPageNumber / _pdfViewerController.pageCount;
-    final bookId = Get.arguments['bookId'];
-    bookController.updateProgress(bookId, progress);
-    bookController.addReadingHistory(bookId, details.newPageNumber - 1);
-    _loadAnnotations();
-    _loadDrawingLayers();
-  }
-
-  void _addBookmark() {
-    final bookId = Get.arguments['bookId'];
-    final currentPage = _pdfViewerController.pageNumber;
-    bookController.addBookmark(bookId, currentPage - 1);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Bookmark added')),
+  Widget _buildToolbarButton(IconData icon, String label, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isDarkMode ? Colors.white70 : Colors.black87,
+              size: 24,
+            ),
+            SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: isDarkMode ? Colors.white70 : Colors.black87,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
