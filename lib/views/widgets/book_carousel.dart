@@ -62,6 +62,7 @@ class _BookCarouselState extends State<BookCarousel> with SingleTickerProviderSt
     final itemWidth = Get.width * AppConstants.carouselViewWidth;
 
     return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         SizedBox(
           height: itemHeight,
@@ -104,38 +105,40 @@ class _BookCarouselState extends State<BookCarousel> with SingleTickerProviderSt
                       alignment: pageOffset >= 0 ? Alignment.centerLeft : Alignment.centerRight,
                       child: Opacity(
                         opacity: opacity,
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: isCenter ? 0 : 20,
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              BookCard(
-                                book: book,
-                                onTap: () => widget.onBookTap(book['id']),
-                                onLongPress: () => widget.onBookLongPress(book),
-                                width: itemWidth,
-                                height: itemHeight * 0.85,
-                                scale: 1.0,
-                                showProgress: isCenter,
-                                showTitle: false,
-                                isCarouselView: true,
-                              ),
-                              if (isCenter) ...[
-                                SizedBox(height: 16),
-                                Text(
-                                  book['title'],
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
+                        child: Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: isCenter ? 0 : 20,
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                BookCard(
+                                  book: book,
+                                  onTap: () => widget.onBookTap(book['id']),
+                                  onLongPress: () => widget.onBookLongPress(book),
+                                  width: itemWidth,
+                                  height: itemHeight * 0.85,
+                                  scale: 1.0,
+                                  showProgress: isCenter,
+                                  showTitle: false,
+                                  isCarouselView: true,
                                 ),
+                                if (isCenter) ...[
+                                  SizedBox(height: 16),
+                                  Text(
+                                    book['title'],
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
                         ),
                       ),
@@ -148,23 +151,50 @@ class _BookCarouselState extends State<BookCarousel> with SingleTickerProviderSt
         ),
         SizedBox(height: 20),
         // Page Indicator
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(widget.books.length, (index) {
-            final isActive = index == _currentPage.round();
-            return GestureDetector(
-              onTap: () => _animateToPage(index),
-              child: Container(
-                margin: EdgeInsets.symmetric(horizontal: 4),
-                width: isActive ? 24 : 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: isActive ? Colors.black87 : Colors.black12,
-                  borderRadius: BorderRadius.circular(4),
+        Container(
+          height: 10,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(widget.books.length, (index) {
+              final isActive = index == _currentPage.round();
+              final isNearActive = (index - _currentPage).abs() < 1;
+
+              return TweenAnimationBuilder(
+                duration: Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                tween: Tween<double>(
+                  begin: isActive ? 0.0 : 1.0,
+                  end: isActive ? 1.0 : 0.0,
                 ),
-              ),
-            );
-          }),
+                builder: (context, double value, child) {
+                  return GestureDetector(
+                    onTap: () => _animateToPage(index),
+                    child: Container(
+                      margin: EdgeInsets.symmetric(horizontal: 3),
+                      width: 8 + (24 - 8) * value,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Color.lerp(
+                          const Color.fromARGB(31, 207, 142, 199),
+                          const Color.fromARGB(221, 164, 40, 189),
+                          isNearActive ? (1 - (index - _currentPage).abs()) : 0,
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                        boxShadow: [
+                          if (isActive)
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 3,
+                              offset: Offset(0, 1),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            }),
+          ),
         ),
       ],
     );
