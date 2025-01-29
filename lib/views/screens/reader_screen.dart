@@ -67,43 +67,37 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Future<void> _captureAndSaveQuote() async {
-    final image = await screenshotController.capture();
-    if (image == null) return;
+    try {
+      final image = await screenshotController.capture();
+      if (image == null) return;
 
-    final directory = await getApplicationDocumentsDirectory();
-    final imagePath = '${directory.path}/quote_${DateTime.now().millisecondsSinceEpoch}.png';
-    await File(imagePath).writeAsBytes(image);
+      final directory = await getApplicationDocumentsDirectory();
+      final imagePath = '${directory.path}/quote_${DateTime.now().millisecondsSinceEpoch}.png';
+      await File(imagePath).writeAsBytes(image);
 
-    Get.dialog(
-      AlertDialog(
-        title: Text('Save Quote'),
-        content: TextField(
-          controller: TextEditingController(),
-          decoration: InputDecoration(labelText: 'Page Number'),
-          keyboardType: TextInputType.number,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              final pageNumber = controller.currentPageNumber;
-              final quote = {
-                'bookId': widget.bookId,
-                'pageNumber': pageNumber,
-                'imagePath': imagePath,
-                'createdAt': DateTime.now().millisecondsSinceEpoch,
-              };
-              await Get.find<QuoteController>().addQuote(quote);
-              Get.back();
-            },
-            child: Text('Save'),
-          ),
-        ],
-      ),
-    );
+      final quote = {
+        'bookId': widget.bookId,
+        'pageNumber': controller.currentPageNumber,
+        'imagePath': imagePath,
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+      };
+
+      await Get.find<QuoteController>().addQuote(quote);
+      Get.snackbar(
+        'Success',
+        'Quote saved',
+        duration: Duration(seconds: 1),
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e) {
+      print('Error saving quote: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to save quote',
+        backgroundColor: Colors.red.withOpacity(0.1),
+        colorText: Colors.red,
+      );
+    }
   }
 
   Future<void> _initializePdfViewer() async {
