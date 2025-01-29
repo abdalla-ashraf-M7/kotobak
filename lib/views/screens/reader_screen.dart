@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
+import 'package:pdf_render/pdf_render.dart';
+import 'package:pdf_render/pdf_render_widgets.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:perfect_freehand/perfect_freehand.dart';
@@ -29,9 +30,8 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   final BookController bookController = Get.find<BookController>();
   final DatabaseHelper _databaseHelper = DatabaseHelper();
-  final Completer<PDFViewController> _pdfViewerController = Completer<PDFViewController>();
-  int? pages = 0;
-  int? currentPage = 0;
+  final controller = PdfViewerController();
+  TapDownDetails? _doubleTapDetails;
   bool showControls = true;
   bool showSearchBar = false;
   bool isLoading = true;
@@ -109,8 +109,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _loadDrawingLayers() async {
     try {
-      if (_pdfViewerController.isCompleted) {
-        final layers = await _databaseHelper.getDrawingLayers(widget.bookId, currentPage! + 1);
+      if (controller.isReady) {
+        final layers = await _databaseHelper.getDrawingLayers(widget.bookId, controller.currentPageNumber);
         setState(() {
           _drawingLayers = layers.map((map) => DrawingLayer.fromMap(map)).toList();
         });
@@ -201,7 +201,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final String bookId = widget.bookId;
     final annotation = Annotation(
       bookId: bookId,
-      page: currentPage! + 1,
+      page: controller.currentPageNumber,
       type: type,
       color: _selectedColor,
       opacity: _opacity,
@@ -316,49 +316,35 @@ class _ReaderScreenState extends State<ReaderScreen> {
           else if (errorMessage != null)
             Center(child: Text(errorMessage!))
           else
-            PDFView(
-              filePath: widget.filePath,
-              enableSwipe: true,
-              swipeHorizontal: false,
-              autoSpacing: false,
-              pageFling: false,
-              pageSnap: false,
-              defaultPage: currentPage ?? 0,
-              fitPolicy: FitPolicy.BOTH,
-              preventLinkNavigation: false,
-              onRender: (_pages) {
-                setState(() {
-                  pages = _pages;
-                  isLoading = false;
-                });
-              },
-              onError: (error) {
-                setState(() {
-                  errorMessage = error.toString();
-                });
-                print(error.toString());
-              },
-              onPageError: (page, error) {
-                print('$page: ${error.toString()}');
-              },
-              onViewCreated: (PDFViewController pdfViewController) {
-                _pdfViewerController.complete(pdfViewController);
-                setState(() => isLoading = false);
-              },
-              onPageChanged: (int? page, int? total) {
-                if (page != null && total != null) {
-                  setState(() {
-                    currentPage = page;
-                    _selectedText = null; // Clear selection on page change
-                  });
-                  final progress = page / total;
-                  bookController.updateProgress(widget.bookId, progress);
-                  _loadDrawingLayers();
-                }
-              },
-              onLinkHandler: (String? uri) {
-                print('goto uri: $uri');
-              },
+            GestureDetector(
+              onDoubleTapDown: (details) => _doubleTapDetails = details,
+              onDoubleTap: () => controller.ready?.setZoomRatio(
+                zoomRatio: controller.zoomRatio * 1.5,
+                center: _doubleTapDetails!.localPosition,
+              ),
+              child: PdfViewer.openFile(
+                widget.filePath,
+                viewerController: controller,
+                onError: (error) => print(error),
+                params: PdfViewerParams(
+                  padding: 2.0, // Small padding between pages
+                  minScale: 1.0,
+                  maxScale: 3.0,
+                  layoutPages: (viewSize, pages) {
+                    // Custom layout for continuous scrolling with proper spacing
+                    List<Rect> rects = [];
+                    double y = 0;
+                    for (var page in pages) {
+                      final aspectRatio = page.width / page.height;
+                      final width = viewSize.width;
+                      final height = width / aspectRatio;
+                      rects.add(Rect.fromLTWH(0, y, width, height));
+                      y += height + 4; // 4 pixels spacing between pages
+                    }
+                    return rects;
+                  },
+                ),
+              ),
             ),
           if (_selectedText != null)
             Positioned(
@@ -535,8 +521,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
                 onLongPressStart: (details) async {
-                  final controller = await _pdfViewerController.future;
-                  final currentPage = await controller.getCurrentPage();
+                  final controller = await this.controller;
+                  final currentPage = await controller.currentPageNumber;
                   // Note: Text selection is not directly supported by flutter_pdfview
                   // You would need to implement custom text extraction if needed
                   setState(() {
@@ -624,8 +610,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     },
                   ),
                   onTap: () async {
-                    final controller = await _pdfViewerController.future;
-                    await controller.setPage(bookmark['page']);
+                    final controller = await this.controller;
+                    await controller.ready?.goToPage(pageNumber: bookmark['page']);
                     Navigator.pop(context);
                   },
                 );
@@ -647,7 +633,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     setState(() {
       _currentLayer = DrawingLayer(
         bookId: widget.bookId,
-        page: currentPage! + 1,
+        page: controller.currentPageNumber,
         layerName: 'Layer ${_drawingLayers.length + 1}',
         strokeColor: _drawingTool == 'eraser' ? Colors.transparent : _selectedColor,
         strokeWidth: _strokeWidth,
@@ -700,7 +686,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (_currentLayer != null && _currentLayer!.points.isNotEmpty) {
       try {
         final String bookId = widget.bookId;
-        final currentPage = this.currentPage! + 1;
+        final currentPage = await controller.currentPageNumber;
 
         if (currentPage <= 0) {
           print('Invalid page number: $currentPage');
@@ -730,7 +716,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _saveDrawingState() async {
     final String bookId = widget.bookId;
-    final int currentPage = this.currentPage! + 1;
+    final int currentPage = await controller.currentPageNumber;
 
     await _databaseHelper.deleteDrawingLayers(bookId, currentPage);
 
@@ -777,6 +763,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   void dispose() {
+    controller.dispose();
     _searchController.dispose();
     super.dispose();
   }
