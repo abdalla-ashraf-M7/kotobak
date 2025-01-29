@@ -11,6 +11,37 @@ class QuotesScreen extends StatelessWidget {
 
   QuotesScreen({required this.bookId});
 
+  void _openQuoteImage(String imagePath) {
+    Get.dialog(
+      Dialog(
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          children: [
+            // Image viewer
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Image.file(
+                File(imagePath),
+                fit: BoxFit.contain,
+              ),
+            ),
+            // Close button
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                icon: Icon(Icons.close, color: Colors.white),
+                onPressed: () => Get.back(),
+              ),
+            ),
+          ],
+        ),
+      ),
+      barrierColor: Colors.black87,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final QuoteController quoteController = Get.put(QuoteController());
@@ -36,44 +67,53 @@ class QuotesScreen extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppConstants.defaultRadius),
                 ),
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(AppConstants.defaultRadius)),
-                        child: Image.file(
-                          File(quote['imagePath']),
-                          fit: BoxFit.cover,
-                          width: double.infinity,
+                child: InkWell(
+                  onTap: () => _openQuoteImage(quote['imagePath']),
+                  borderRadius: BorderRadius.circular(AppConstants.defaultRadius),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Hero(
+                          tag: 'quote_${quote['imagePath']}',
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(AppConstants.defaultRadius),
+                            ),
+                            child: Image.file(
+                              File(quote['imagePath']),
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                    Padding(
-                      padding: EdgeInsets.all(8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Page ${quote['pageNumber']}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.secondary,
+                      Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Page ${quote['pageNumber']}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.secondary,
+                              ),
                             ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            quote['text'] ?? '',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
+                            SizedBox(height: 4),
+                            Text(
+                              quote['text'] ?? '',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             },

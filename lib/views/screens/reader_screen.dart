@@ -55,6 +55,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
   bool isSearchVisible = false;
   bool _isTextSelectionMode = false;
   String? _selectedText;
+  bool _isSelectingQuoteArea = false;
+  Offset? _selectionStart;
+  Offset? _selectionEnd;
 
   @override
   void initState() {
@@ -476,7 +479,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         // Comment functionality
                       }),
                       _buildToolbarButton(Icons.format_quote, 'Quote', onTap: () {
-                        _captureAndSaveQuote();
+                        _startQuoteSelection();
                       }),
                       _buildToolbarButton(Icons.highlight_alt_outlined, 'Highlight', onTap: () {
                         setState(() {
@@ -586,6 +589,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 },
               ),
             ),
+          if (_isSelectingQuoteArea) _buildSelectionOverlay(),
         ],
       ),
     );
@@ -815,6 +819,120 @@ class _ReaderScreenState extends State<ReaderScreen> {
     });
   }
 
+  void _startQuoteSelection() {
+    setState(() {
+      _isSelectingQuoteArea = true;
+      _selectionStart = null;
+      _selectionEnd = null;
+    });
+  }
+
+  Widget _buildSelectionOverlay() {
+    return Positioned.fill(
+      child: GestureDetector(
+        onPanStart: (details) {
+          setState(() => _selectionStart = details.localPosition);
+        },
+        onPanUpdate: (details) {
+          setState(() => _selectionEnd = details.localPosition);
+        },
+        onPanEnd: (_) async {
+          if (_selectionStart != null && _selectionEnd != null) {
+            await _captureSelectedArea();
+            setState(() => _isSelectingQuoteArea = false);
+          }
+        },
+        child: CustomPaint(
+          painter: SelectionPainter(
+            selectionStart: _selectionStart,
+            selectionEnd: _selectionEnd,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _captureSelectedArea() async {
+    if (_selectionStart == null || _selectionEnd == null) return;
+
+    try {
+      // Calculate the selection rectangle
+      final rect = Rect.fromPoints(_selectionStart!, _selectionEnd!);
+
+      // Capture the entire screen first
+      final fullImage = await screenshotController.capture(
+        pixelRatio: 2.0,
+        delay: Duration(milliseconds: 10),
+      );
+
+      if (fullImage == null) return;
+
+      // Create an image from the captured bytes
+      final originalImage = await decodeImageFromList(fullImage);
+
+      // Create a picture recorder to draw the cropped area
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+
+      // Calculate the crop rectangle, ensuring it's within bounds
+      final cropRect = Rect.fromLTWH(
+        rect.left.clamp(0.0, originalImage.width.toDouble()),
+        rect.top.clamp(0.0, originalImage.height.toDouble()),
+        rect.width.clamp(0.0, originalImage.width.toDouble()),
+        rect.height.clamp(0.0, originalImage.height.toDouble()),
+      );
+
+      // Draw only the selected portion
+      canvas.drawImageRect(
+        originalImage,
+        cropRect,
+        Rect.fromLTWH(0, 0, cropRect.width, cropRect.height),
+        Paint(),
+      );
+
+      // Convert to an image
+      final picture = recorder.endRecording();
+      final croppedImage = await picture.toImage(
+        cropRect.width.toInt(),
+        cropRect.height.toInt(),
+      );
+
+      // Convert to bytes
+      final byteData = await croppedImage.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final croppedBytes = byteData.buffer.asUint8List();
+
+      // Save the cropped image
+      final directory = await getApplicationDocumentsDirectory();
+      final imagePath = '${directory.path}/quote_${DateTime.now().millisecondsSinceEpoch}.png';
+      await File(imagePath).writeAsBytes(croppedBytes);
+
+      final quote = {
+        'bookId': widget.bookId,
+        'pageNumber': controller.currentPageNumber,
+        'imagePath': imagePath,
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+      };
+
+      await Get.find<QuoteController>().addQuote(quote);
+      Get.snackbar(
+        'Success',
+        'Quote saved',
+        duration: Duration(seconds: 1),
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e) {
+      print('Error saving quote: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to save quote',
+        backgroundColor: Colors.red.withOpacity(0.1),
+        colorText: Colors.red,
+      );
+    }
+  }
+
   @override
   void dispose() {
     controller.dispose();
@@ -881,4 +999,35 @@ class DrawingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant DrawingPainter oldDelegate) => true;
+}
+
+class SelectionPainter extends CustomPainter {
+  final Offset? selectionStart;
+  final Offset? selectionEnd;
+
+  SelectionPainter({this.selectionStart, this.selectionEnd});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (selectionStart == null || selectionEnd == null) return;
+
+    final paint = Paint()
+      ..color = Colors.blue.withOpacity(0.3)
+      ..style = PaintingStyle.fill;
+
+    final rect = Rect.fromPoints(selectionStart!, selectionEnd!);
+    canvas.drawRect(rect, paint);
+
+    final borderPaint = Paint()
+      ..color = Colors.blue
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    canvas.drawRect(rect, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(SelectionPainter oldDelegate) {
+    return selectionStart != oldDelegate.selectionStart || selectionEnd != oldDelegate.selectionEnd;
+  }
 }
