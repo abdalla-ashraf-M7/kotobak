@@ -123,6 +123,14 @@ dependencies:
   syncfusion_flutter_pdfviewer: ^24.1.41
   # PDF Viewer
   device_info_plus: ^9.0.2
+  # For better PDF handling
+  flutter_cache_manager: ^3.3.1
+
+  # For improved drawing
+  perfect_freehand: ^1.0.4
+
+  # For better performance
+  flutter_riverpod: ^2.4.9
 
 dev_dependencies:
   flutter_test:
