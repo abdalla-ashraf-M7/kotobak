@@ -573,19 +573,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ),
             ),
           ),
-          if (!_isDrawingMode)
+          if (!_isDrawingMode && !_isSelectingQuoteArea)
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onLongPressStart: (details) async {
-                  final controller = await this.controller;
-                  final currentPage = await controller.currentPageNumber;
-                  // Note: Text selection is not directly supported by flutter_pdfview
-                  // You would need to implement custom text extraction if needed
-                  setState(() {
-                    _isTextSelectionMode = true;
-                  });
-                  _showTextSelectionToolbar(details.globalPosition);
+                onLongPress: () {
+                  // Disable long press for now since text selection isn't supported
+                  // by the PDF viewer widget
                 },
               ),
             ),
@@ -829,23 +823,27 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Widget _buildSelectionOverlay() {
     return Positioned.fill(
-      child: GestureDetector(
-        onPanStart: (details) {
-          setState(() => _selectionStart = details.localPosition);
-        },
-        onPanUpdate: (details) {
-          setState(() => _selectionEnd = details.localPosition);
-        },
-        onPanEnd: (_) async {
-          if (_selectionStart != null && _selectionEnd != null) {
-            await _captureSelectedArea();
-            setState(() => _isSelectingQuoteArea = false);
-          }
-        },
-        child: CustomPaint(
-          painter: SelectionPainter(
-            selectionStart: _selectionStart,
-            selectionEnd: _selectionEnd,
+      child: Container(
+        color: Colors.transparent, // Add transparent overlay to prevent PDF interaction
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque, // This prevents interaction with layers below
+          onPanStart: (details) {
+            setState(() => _selectionStart = details.localPosition);
+          },
+          onPanUpdate: (details) {
+            setState(() => _selectionEnd = details.localPosition);
+          },
+          onPanEnd: (_) async {
+            if (_selectionStart != null && _selectionEnd != null) {
+              await _captureSelectedArea();
+              setState(() => _isSelectingQuoteArea = false);
+            }
+          },
+          child: CustomPaint(
+            painter: SelectionPainter(
+              selectionStart: _selectionStart,
+              selectionEnd: _selectionEnd,
+            ),
           ),
         ),
       ),
